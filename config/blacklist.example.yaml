@@ -1,0 +1,10 @@
+# Employers to never surface or apply to, by exact company name as it
+# appears in the job source (case-insensitive match). Copy this to
+# config/blacklist.yaml and fill in your own list -- this file ships
+# empty on purpose, a blacklist is personal to the candidate and should
+# never live in a shared/example config.
+companies: []
+
+# Industries to filter out of rankings (freeform strings, matched
+# case-insensitively as substrings against posting text you provide).
+industries: []

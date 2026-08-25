@@ -1,0 +1,17 @@
+profile/candidate_profile.yaml
+config/blacklist.yaml
+config/boards.yaml
+config/tier_overrides.local.yaml
+data/
+artifacts/
+.env
+*.pyc
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.pii_scan_terms.txt
+.pii_scan_allow.txt

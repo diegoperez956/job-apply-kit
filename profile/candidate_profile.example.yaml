@@ -1,0 +1,111 @@
+# Candidate profile -- example / schema reference.
+#
+# Every fact is `{value: ..., state: ...}`. state is one of:
+#   known                 -- verified, safe to use anywhere (e.g. forms)
+#   preference             -- a soft preference, fine for ranking/filtering
+#   requires_confirmation  -- interview couldn't pin it down; treated as
+#                             unknown by answers.py until you confirm it
+#
+# Generate a real one with the /job-profile-interview skill, or copy this
+# file to profile/candidate_profile.yaml and fill in your own values by
+# hand. This example file contains no real data -- every value below is a
+# placeholder.
+
+schema_version: 1
+
+target_roles:
+  value: ["Example Role Title", "Another Example Title"]
+  state: known
+
+seniority:
+  value: "mid"  # one of: junior, mid, senior, staff, principal (freeform, kept as string)
+  state: known
+
+location_mode:
+  value: ["remote", "hybrid"]  # subset of: remote, hybrid, onsite
+  state: known
+
+geography:
+  value: ["US-remote", "Example City, ST"]
+  state: known
+
+comp_floor_by_mode:
+  remote:
+    value: {amount: 100000, currency: "USD", period: "annual"}
+    state: known
+  hybrid:
+    value: {amount: 110000, currency: "USD", period: "annual"}
+    state: known
+  onsite:
+    value: {amount: 120000, currency: "USD", period: "annual"}
+    state: requires_confirmation
+
+# One entry per country you're authorized (or not) to work in. status is
+# freeform (e.g. citizen, permanent_resident, visa_holder,
+# needs_sponsorship); sponsorship_required is the boolean screeners ask
+# about. answers.py resolves a screener question against whichever
+# country is passed in (see resolve_answer(..., country=...)).
+authorizations:
+  value:
+    - country: "US"
+      status: "example_status"
+      sponsorship_required: false
+  state: requires_confirmation
+
+relocation:
+  value: false
+  state: known
+
+relocation_notes:
+  value: null
+  state: known
+
+start_date:
+  value: "2_weeks_notice"  # or an ISO date, or "immediate"
+  state: known
+
+non_compete:
+  value: false
+  state: requires_confirmation
+
+non_compete_notes:
+  value: null
+  state: requires_confirmation
+
+industries_to_avoid:
+  value: []
+  state: preference
+
+employer_blacklist:
+  value: []
+  state: preference
+
+dealbreakers:
+  value: ["Example dealbreaker, e.g. no on-call rotation"]
+  state: preference
+
+self_id:
+  gender:
+    value: "decline_to_answer"
+    state: preference
+  race_ethnicity:
+    value: "decline_to_answer"
+    state: preference
+  veteran_status:
+    value: "decline_to_answer"
+    state: preference
+  disability_status:
+    value: "decline_to_answer"
+    state: preference
+
+links:
+  value:
+    linkedin: "https://www.linkedin.com/in/example"
+    github: "https://github.com/example"
+    portfolio: "https://example.dev"
+  state: known
+
+screener_answers:
+  - question: "Why are you interested in this role?"
+    answer: "SUGGESTION: tie this to your target_roles and seniority -- edit per posting."
+    state: requires_confirmation

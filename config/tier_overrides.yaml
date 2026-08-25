@@ -1,0 +1,11 @@
+# Host -> tier overrides, merged on top of the built-in defaults in
+# src/job_apply_kit/tier.py (DEFAULT_TIER_BY_HOST). Add entries here for
+# ATS hosts the defaults get wrong, or ones the defaults don't know
+# about yet. Matched by hostname suffix (see tier.detect_tier).
+#
+# Tier 1 = unattended, public API, deterministic.
+# Tier 2 = attended, browser-extension-assisted, human clicks submit.
+# Tier 3 = curated shortlist only, no automation.
+#
+# Example:
+# jobs.example-ats.com: 2

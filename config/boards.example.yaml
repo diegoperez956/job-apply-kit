@@ -1,0 +1,10 @@
+# List of Greenhouse board tokens (and other tier-1 sources) to pull from.
+# Copy to config/boards.yaml and fill in real slugs -- find them by
+# browsing to a company's careers page (usually
+# boards.greenhouse.io/<slug>) or with:
+#   python -m job_apply_kit.sources.probe_boards --keyword "engineer" acme acme-inc
+#
+# board_token is the slug in the boards-api.greenhouse.io URL.
+greenhouse:
+  - board_token: example-company
+  - board_token: another-example-co
