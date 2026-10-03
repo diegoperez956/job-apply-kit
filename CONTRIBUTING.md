@@ -15,8 +15,10 @@ python -m venv .venv && .venv/bin/pip install -e .[dev]
 python3 scripts/pii_scan.py
 ```
 
-All three must be clean. The `pii_scan.py` check is also wired as a
-pre-commit hook after `install_hooks.sh`.
+All three must be clean. GitHub Actions runs the same checks on Python
+3.10 and 3.13 for pushes and pull requests; tests stay offline and need
+no credentials. The `pii_scan.py` check is also wired as a pre-commit
+hook after `install_hooks.sh`.
 
 ## Ground rules
 
