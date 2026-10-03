@@ -56,6 +56,7 @@ always going to edit.
   (profile facts, prep pack) a tier-2 flow would consume.
 - An LLM client/SDK dependency. `llm.py` shells out to the `claude` CLI
   if present; there's no vendor SDK in `pyproject.toml`.
-- Any ATS source beyond Greenhouse initially. `tier.py`'s host table and
-  `sources/` are structured so adding Lever, Ashby, etc. is a new small
-  module plus a table entry, not a redesign.
+- ATS sources without a public, no-login job-board API (Workday, iCIMS,
+  LinkedIn, ...). Greenhouse, Lever, and Ashby are each one small module
+  in `sources/` plus a tier-1 entry in `tier.py`; another public API
+  slots in the same way.

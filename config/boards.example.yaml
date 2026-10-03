@@ -1,10 +1,15 @@
-# List of Greenhouse board tokens (and other tier-1 sources) to pull from.
+# Tier-1 boards to pull from: public, no-login ATS APIs only.
 # Copy to config/boards.yaml and fill in real slugs -- find them by
-# browsing to a company's careers page (usually
-# boards.greenhouse.io/<slug>) or with:
-#   python -m job_apply_kit.sources.probe_boards --keyword "engineer" acme acme-inc
-#
-# board_token is the slug in the boards-api.greenhouse.io URL.
+# browsing to a company's careers page and copying the path segment:
+#   boards.greenhouse.io/<board_token>   (or probe with:
+#     job-apply-kit probe-boards --keyword "engineer" acme acme-inc)
+#   jobs.lever.co/<slug>
+#   jobs.ashbyhq.com/<slug>
+# Any section can be omitted.
 greenhouse:
   - board_token: example-company
   - board_token: another-example-co
+lever:
+  - slug: example-company
+ashby:
+  - slug: example-company

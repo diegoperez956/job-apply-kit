@@ -32,11 +32,10 @@ def test_blank_input_is_tier_3():
     assert detect_tier("") == 3
 
 
-def test_lever_and_ashby_default_to_tier_2_no_implemented_source():
-    # jobs.lever.co / jobs.ashbyhq.com have public job-board APIs but no
-    # fetch client in sources/ yet -- see Q4/tier.py.
-    assert detect_tier("https://jobs.lever.co/acme/xyz") == 2
-    assert detect_tier("https://jobs.ashbyhq.com/acme") == 2
+def test_lever_and_ashby_are_tier_1_with_implemented_sources():
+    # sources/lever.py and sources/ashby.py read these hosts' public APIs.
+    assert detect_tier("https://jobs.lever.co/acme/xyz") == 1
+    assert detect_tier("https://jobs.ashbyhq.com/acme") == 1
 
 
 def test_load_tier_overrides_rejects_invalid_tier_value(tmp_path):
