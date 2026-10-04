@@ -135,3 +135,20 @@ def test_block_scalar_requires_human_review(repair_case):
     with pytest.raises(IntegrationError):
         self_heal.heal(log, apply=True)
     assert self_heal.BOARDS.read_text() == text
+
+
+def test_empty_board_section_matches_discovery_and_still_repairs(repair_case):
+    log, original = repair_case
+    self_heal.BOARDS.write_text(original + "lever:\nashby: ~\n")
+    assert self_heal.heal(log, apply=True) == 0
+    repaired = yaml.safe_load(self_heal.BOARDS.read_text())
+    assert repaired["greenhouse"] == [{"board_token": "example-co"}]
+    assert repaired["lever"] is None
+
+
+def test_observed_failure_outside_report_window_is_still_repairable(repair_case):
+    log, original = repair_case
+    for index in range(25):
+        log.record("discover", "failure", source="lever", target=f"dead-{index}", code="LeverError")
+    assert self_heal.heal(log, apply=True) == 0
+    assert self_heal.BOARDS.read_text() == original.replace('" example-co "', '"example-co"')

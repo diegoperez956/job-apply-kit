@@ -16,7 +16,7 @@ from pathlib import Path
 import yaml
 
 from .integrations import IntegrationError
-from .run_log import RunLog, reference
+from .run_log import RunLog
 
 BOARDS = Path("config/boards.yaml")
 MAX_CHANGED_LINES = 60
@@ -36,7 +36,7 @@ def _proposal(text: str) -> tuple[str, list[tuple[str, str]]]:
     targets = []
     for name, entries in root.value:
         key = {"greenhouse": "board_token", "lever": "slug", "ashby": "slug"}.get(name.value)
-        if key is None:
+        if key is None or entries.tag == "tag:yaml.org,2002:null":
             continue
         if not isinstance(entries, yaml.SequenceNode):
             raise IntegrationError("report only: board entries must be lists")
@@ -110,12 +110,13 @@ def heal(log: RunLog, *, apply: bool = False) -> int:
         raise IntegrationError("report only: repair exceeds 60 changed lines")
     # Only repair a config typo actually observed failing. Never infer a fix for
     # authentication, CAPTCHA, HTTP rate limits, malformed payloads or cap failures.
-    failed = {
-        (row["source"], row["target"])
-        for row in report["failures"]
-        if row["latest_outcome"] == "failure"
-    }
-    if any((source, reference(slug)) not in failed for source, slug in targets):
+    if not all(
+        any(
+            row["source"] == source and row["latest_outcome"] == "failure"
+            for row in log.report(target=slug)["failures"]
+        )
+        for source, slug in targets
+    ):
         print("Report only: whitespace found, but no matching observed board failure.")
         return 0
     _dry_run(repaired, targets)
