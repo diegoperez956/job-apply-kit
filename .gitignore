@@ -1,4 +1,6 @@
 profile/candidate_profile.yaml
+profile/resume_evidence.yaml
+config/integrations.local.yaml
 config/blacklist.yaml
 config/boards.yaml
 config/tier_overrides.local.yaml

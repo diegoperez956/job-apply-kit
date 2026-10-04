@@ -33,6 +33,7 @@ class GreenhouseJob:
     salary_amount: int | None = None
     salary_currency: str = "USD"
     salary_period: str = "annual"
+    description: str = ""
 
 
 class GreenhouseError(RuntimeError):
@@ -111,6 +112,7 @@ def fetch_jobs(board_token: str, *, timeout: float = 10.0) -> list[GreenhouseJob
                 salary_amount=salary_amount,
                 salary_currency=salary_currency,
                 salary_period=salary_period,
+                description=j.get("content") if isinstance(j.get("content"), str) else "",
             )
         )
     return jobs

@@ -53,6 +53,12 @@ two separate turns, not one).
    2-4 closely related titles, not a scattershot list.
 2. **Seniority** -- junior / mid / senior / staff / principal. Recommend
    based on the roles and any years-of-experience the user mentions.
+2a. **Confirmed experience years** -- ask how many years of relevant
+    experience the user can support. Record `experience_years`; unsure or
+    declined means `null` / `requires_confirmation`, never a fixed default.
+2b. **Confirmed skills** -- ask which technical skills the user can support
+    from their own experience. Record `skills`; interests/target skills
+    aren't confirmed skills. Optional Jev sends only confirmed skill names.
 3. **Location mode** -- remote / hybrid / onsite, can be more than one.
    Recommend remote-first unless the user says otherwise.
 4. **Geography** -- if hybrid/onsite is in scope, ask which
@@ -87,6 +93,9 @@ two separate turns, not one).
 12. **Non-compete** -- "Are you currently under a non-compete?"
     (yes/no only). Recommend "no" only if the user confirms no current
     agreement.
+12a. **Security clearance** -- ask whether the user holds the clearance
+     relevant to their target roles. Record `security_clearance`; unsure or
+     declined stays `null` / `requires_confirmation`. Never infer a clearance.
 13. **Non-compete restrictions** -- only if step 12 was yes: "What
     industry or geographic restrictions does it include?" as its own
     separate turn.
@@ -121,6 +130,41 @@ user's real information and must never be committed). Validate it loads
 cleanly with `load_profile()` before telling the user you're done. If
 validation fails, fix the YAML and re-validate -- don't hand the user a
 broken profile.
+
+## Post-interview integration choices
+
+After the confirmed profile validates, check **only presence**, never print
+or ask for a token:
+
+```bash
+.venv/bin/python -c "from job_apply_kit.integrations import typesafe_key; print('present' if typesafe_key() else 'absent')"
+```
+
+Ask one question at a time:
+
+1. "Wire in optional Jev / TypeSafe?" Recommend **no / keyword-only** unless
+   the user wants structured JD requirements. Explain that only job text and
+   confirmed skill names go to TypeSafe, never resume bullets or contact data.
+2. If yes, guide them to https://typesafe.ai for a dedicated key and the
+   private terminal prompt in `docs/integrations.md`. **Never accept or read
+   the key in chat.** Ask the daily local USD cap as its own question, then
+   the monthly cap. Zero blocks calls. Missing key stays keyword-only until
+   they export `TYPESAFE_API_KEY`; a key alone never enables Jev.
+3. "Do you use Simplify Copilot?" Recommend **no** unless they use/want its
+   official extension. Explain `docs/simplify.md`: the human installs/logs in,
+   the kit prepares a packet, the human checks every field and clicks submit.
+4. If yes, ask separately whether they have read https://simplify.jobs/terms
+   and accept the generic account/privacy risks. No acceptance: leave it off.
+
+Record choices with `.venv/bin/job-apply-kit setup --jev yes|no --simplify
+ yes|no`, passing `--daily-budget`/`--monthly-budget` only for user-chosen
+amounts and `--accept-simplify-risk` only after explicit acceptance. Substitute
+actual yes/no choices, don't run the literal alternatives. The CLI validates
+the profile, checks key presence without exposing it, and writes only the
+non-secret, gitignored `config/integrations.local.yaml`. Users may instead
+run interactive `.venv/bin/job-apply-kit setup` themselves after the interview.
+Do not invent resume bullets here; optional `profile/resume_evidence.yaml`
+contains only user-provided, confirmed evidence (see its fictional example).
 
 If a profile already exists, read it first and treat the interview as an
 update: show current values as the recommended defaults so the user only

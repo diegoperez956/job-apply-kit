@@ -1,196 +1,192 @@
 # job-apply-kit
 
-A Claude Code (and general CLI) kit for job hunting: a grill-me interview
-builds a structured, fact-checked job-search profile, then deterministic
-code uses that profile to fetch, rank, and shortlist jobs -- with prep
-packs grounded only in what you actually told it.
-
-It is not a mass-application bot. It will not click "submit" for you, log
-into a site on your behalf, or solve a CAPTCHA. See [Non-negotiables](#non-negotiables).
+Interview-driven job-search kit for Claude Code and the CLI. Build a
+fact-checked profile, fetch public jobs, rank them, and prepare application
+packets. **A human reviews every field and clicks submit.**
 
 ## Start here: the interview
 
-Everything downstream reads one file, `profile/candidate_profile.yaml`,
-and the interview is how you build it. In Claude Code, from this repo:
+In Claude Code, from this repo:
 
 ```
 /job-profile-interview
 ```
 
-It's a grill-me interview
-(`.claude/skills/job-profile-interview/SKILL.md`): one question at a
-time, a recommended answer offered each time, your response recorded
-with an honest state -- `known`, `preference`, or
-`requires_confirmation`. It walks target roles, seniority, comp floors
-by location mode (with currency/period), remote/hybrid/onsite,
-geography, per-country work authorization and sponsorship, relocation,
-start date, non-compete, industries to avoid, employer blacklist,
-dealbreakers, self-ID preferences, and a screener-answer bank, then
-writes the profile against the schema in `src/job_apply_kit/profile.py`.
+The interview asks one question at a time, recommends an answer, and tags
+facts `known`, `preference`, or `requires_confirmation`. It covers roles,
+seniority, confirmed skills/experience, location and compensation,
+work authorization, sponsorship, relocation, clearance, dealbreakers,
+self-ID preferences, and reusable screener answers. You confirm the summary
+before it writes the gitignored `profile/candidate_profile.yaml`.
 
-Then check it (after the [quickstart](#5-minute-quickstart) install):
+**After the interview, run `job-apply-kit setup`.** It checks whether
+`TYPESAFE_API_KEY` is present without showing it, then asks separately:
 
-```bash
-job-apply-kit interview-check   # validates, lists anything still requires_confirmation
-```
+- Wire in **Jev / TypeSafe**? Default **no**: keyword-only. Yes guides you
+  to obtain/export a key and choose local daily/monthly spending caps.
+  A key alone never enables Jev. Missing key, zero/exhausted budget, or
+  service failure leaves keyword matching available.
+- Use **Simplify Copilot**? Default **no**. Yes explains installation,
+  terms/account risks, and requires separate risk acceptance before a
+  capped, human-operated handoff.
 
-No Claude Code? Copy `profile/candidate_profile.example.yaml` (fake
-data, full shape) to `profile/candidate_profile.yaml` and fill it in by
-hand. The real file is gitignored -- keep it that way.
+No Claude Code? Copy `profile/candidate_profile.example.yaml` to its real
+name, fill it in yourself, run `interview-check`, then `setup`. Example
+facts are fictional; don't use them in a real application.
 
-## What it does
-
-1. **Interview** -- see [Start here](#start-here-the-interview). Every
-   answer is tagged `known`, `preference`, or `requires_confirmation` so
-   downstream code never treats a guess as a fact.
-2. **Source** -- pulls open jobs from public, no-login ATS APIs:
-   Greenhouse, Lever, and Ashby job boards. Explicit Ashby/Lever remote
-   metadata is included in the location label for ranking and salary-floor
-   selection; the original location text stays visible for human review.
-3. **Rank** -- drops any posting from a blacklisted company
-   (`config/blacklist.yaml`, personal and gitignored), then scores what's
-   left for title/keyword fit against your target roles and checks
-   location/comp reachability against your profile. Comp reachability
-   respects currency and pay period (hourly/monthly figures are
-   annualized before comparing); a posting with no salary, no confirmed
-   comp floor for that mode, or a currency this kit can't convert is left
-   labeled unknown, never silently treated as reachable or not.
-4. **Route by tier** -- classifies each posting's host into tier 1, 2, or
-   3 (see below) so you know exactly how much automation is appropriate
-   for that specific application.
-5. **Shortlist** -- renders a ranked markdown shortlist with a prep pack
-   per job: a fit rationale grounded in your profile, suggested resume
-   bullets clearly marked `SUGGESTION` (this kit doesn't know your actual
-   work history), and pre-drafted screener answers pulled deterministically
-   from your profile facts.
-
-## 5-minute quickstart
+## Quickstart: prove the pipeline runs without keys
 
 ```bash
 git clone <this-repo> && cd job-apply-kit
-python -m venv .venv && .venv/bin/pip install -e .[dev]
-./scripts/install_hooks.sh          # pre-commit PII scan, once
+python -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+./scripts/install_hooks.sh
 
-# 1. In Claude Code: /job-profile-interview   (see Start here above)
-
-# Copy every *.example.yaml in config/ to its real (gitignored) name --
-# these hold personal data (board list, blacklist) and must never be
-# committed. config/tier_overrides.local.yaml has no .example seed file;
-# create it yourself only if you need personal tier overrides.
-cp config/boards.example.yaml config/boards.yaml
-cp config/blacklist.example.yaml config/blacklist.yaml
-cp .env.example .env               # set your daily / per-company caps
-
-job-apply-kit interview-check
-job-apply-kit probe-boards --keyword "engineer" acme acme-inc
-job-apply-kit discover
-job-apply-kit shortlist artifacts/ranked_jobs.jsonl
-.venv/bin/pytest
+# Run /job-profile-interview in Claude Code, or try the fictional profile:
+cp profile/candidate_profile.example.yaml profile/candidate_profile.yaml
+cp profile/resume_evidence.example.yaml profile/resume_evidence.yaml
+.venv/bin/job-apply-kit interview-check
+.venv/bin/job-apply-kit setup             # answer no, then no for this demo
+.venv/bin/job-apply-kit discover --demo
+.venv/bin/job-apply-kit rank artifacts/ranked_jobs.jsonl --demo
+.venv/bin/job-apply-kit packet artifacts/ranked_jobs.jsonl
+.venv/bin/job-apply-kit shortlist artifacts/ranked_jobs.jsonl --out artifacts/shortlist.md
+.venv/bin/pytest -q
 ```
 
-Nothing here applies to a job on your behalf. The output of a full run is
-a markdown shortlist and prep packs for you to review and act on.
+`--demo` uses one fictional job and a mocked TypeSafe endpoint; it makes
+**no network requests**, even with a key present. Its cache is separate
+from real jobs. Demo packets cannot reserve a Simplify handoff.
+
+For real public boards, create the gitignored configuration:
+
+```bash
+cp config/boards.example.yaml config/boards.yaml
+cp config/blacklist.example.yaml config/blacklist.yaml
+# Replace example board slugs; edit the blacklist for yourself.
+.venv/bin/job-apply-kit discover
+.venv/bin/job-apply-kit rank artifacts/ranked_jobs.jsonl
+.venv/bin/job-apply-kit packet artifacts/ranked_jobs.jsonl --url 'https://<actual-job-url>'
+```
+
+## Optional Jev: requirements, not invented candidate facts
+
+Jev uses TypeSafe's **direct** `POST https://api.typesafe.ai/v1/systemone`
+API (`jev-1.13.0`), not an AI gateway. Bounded choice questions extract
+years, clearance, degree, work mode, sponsorship, seniority and
+required/preferred skills. Only the job text and up to 25 confirmed skill
+names are sent; no resume bullets, contact details, or screener answers.
+
+Responses are validated per field; invalid answers stay unknown. A
+numeric years requirement also uses the full cleaned JD as a local regex
+cross-check. Confirmed years/clearance mismatches are flagged for human
+review, using **your** facts, never a fixed personal eligibility cutoff.
+The keyword fit score remains deterministic. Extracted skills add relevance
+signals when reordering your own confirmed resume evidence; they never
+create skills or claims.
+
+There is at most one request attempt per job URL in the local cache,
+including failed/uncertain attempts. Re-ranking and packet preparation
+reuse the result; packets never call TypeSafe. Requests reserve estimated
+spend atomically before calling, against local UTC daily/monthly caps.
+Failed attempts still count. These conservative local estimates are **not**
+a provider-wide billing guarantee: verify pricing, use a dedicated key,
+and set an account-side limit if available. See [integration notes](docs/integrations.md).
+
+To try the opt-in path offline with a **fake** key:
+
+```bash
+TYPESAFE_API_KEY=demo-only .venv/bin/job-apply-kit setup --jev yes --simplify no \
+  --daily-budget 0.01 --monthly-budget 0.05
+TYPESAFE_API_KEY=demo-only .venv/bin/job-apply-kit discover --demo
+TYPESAFE_API_KEY=demo-only .venv/bin/job-apply-kit rank artifacts/ranked_jobs.jsonl --demo
+TYPESAFE_API_KEY=demo-only .venv/bin/job-apply-kit packet artifacts/ranked_jobs.jsonl
+# Disable again, or run interactive setup for real use:
+.venv/bin/job-apply-kit setup --jev no --simplify no
+```
+
+For real use, export `TYPESAFE_API_KEY` through your secret manager or a
+private terminal prompt, **not** as a literal command or CLI argument.
+This kit reads only that process environment variable; it does not inspect
+shared credential files, browser profiles, or other projects' accounts.
+Never paste a key into the interview or commit a credentials file.
+
+## Resume evidence and Simplify handoff
+
+`profile/resume_evidence.yaml` is optional, personal and gitignored.
+Follow its fictional example shape: confirmed skills and per-role bullet
+blocks, each carrying a Fact state. A packet reorders only confirmed skills
+and bullets **within their original role**. No addition, deletion, rewritten
+claim, generated summary, LaTeX template, or PDF is involved. Unknown evidence
+is omitted; without evidence you attach your own reviewed resume.
+
+Simplify Copilot is installed and operated by **you** in your own browser.
+The kit prepares the packet and checklist; it does not launch a browser,
+log in, fill a form, read cookies, or call a Simplify API. After interactive
+`setup` and risk acceptance:
+
+```bash
+# Choose your own positive application limits; these are illustrative only.
+export JOB_APPLY_DAILY_CAP=5 JOB_APPLY_PER_COMPANY_CAP=1 JOB_APPLY_TZ=UTC
+.venv/bin/job-apply-kit packet artifacts/ranked_jobs.jsonl \
+  --url 'https://<actual-job-url>' --simplify --out artifacts/simplify-packet.md
+.venv/bin/job-apply-kit caps status
+```
+
+A Simplify handoff **reserves a cap slot before preparing the file**.
+Repeated handoffs count again; cancelled/unused reservations aren't
+refunded automatically. This is not evidence that an application was
+submitted. Missing/invalid caps, a blacklist hit, or a known requirements
+mismatch blocks the handoff. Read [Simplify setup and account risks](docs/simplify.md).
 
 ## CLI
 
-Installing the package (`pip install -e .`) puts a `job-apply-kit`
-console script on PATH. This is the only automation surface in the kit --
-nothing here submits an application. Commands:
+Use `.venv/bin/job-apply-kit` if your virtual environment isn't activated.
 
-| Command | What it does |
+| Command | Output |
 |---|---|
-| `job-apply-kit interview-check [--profile PATH]` | Loads and validates `profile/candidate_profile.yaml` against the schema; lists any fact still `requires_confirmation`. |
-| `job-apply-kit probe-boards [--keyword K] SLUG...` | Checks whether each Greenhouse board-token slug exists and reports matching open jobs. |
-| `job-apply-kit discover [--profile PATH] [--boards PATH] [--out PATH]` | Fetches every board in `config/boards.yaml` (`greenhouse`, `lever`, `ashby` sections) via their public job-board APIs, drops any posting whose company matches `config/blacklist.yaml` (if present), ranks and tiers what's left, writes one JSON row per job to a JSONL file (default `artifacts/ranked_jobs.jsonl`). |
-| `job-apply-kit shortlist JOBS.jsonl [--profile PATH] [--out PATH]` | Renders the markdown shortlist + prep packs from a `discover` JSONL file. |
-| `job-apply-kit caps status [--db PATH] [--company NAME]...` | Prints current daily and per-company-7d usage from the durable caps ledger (`data/caps.sqlite3` by default). |
+| `interview-check [--profile PATH]` | Validate the profile; list unconfirmed facts. |
+| `setup [--jev yes\|no] [--simplify yes\|no]` | Post-interview opt-ins; local config only, no secrets. Interactive unless both choices supplied. |
+| `probe-boards [--keyword K] SLUG...` | Probe public Greenhouse board slugs. |
+| `discover [--demo] [--profile PATH] [--boards PATH] [--evidence PATH] [--out PATH]` | Fetch, blacklist-filter, keyword-rank, optionally extract requirements, tier, write JSONL. |
+| `rank JOBS.jsonl [--demo] [--profile PATH] [--evidence PATH] [--out PATH]` | Rerank existing jobs with current facts/blacklist and the optional cache. |
+| `packet JOBS.jsonl [--url URL] [--evidence PATH] [--out PATH] [--simplify]` | One Markdown application packet; select a URL when several jobs are present. |
+| `shortlist JOBS.jsonl [--profile PATH] [--out PATH]` | Ranked overview and suggestions explicitly marked `SUGGESTION`. |
+| `caps status [--db PATH] [--company NAME]...` | Read-only reservation usage. |
 
-`caps status` is read-only. There is no `apply`/`reserve` command in this
-CLI -- `caps.py`'s `CapsLedger.reserve()` exists for other code (e.g. a
-tier-2 browser-extension flow, out of this repo's scope) to call when it
-actually records a submitted application.
+Default outputs are under gitignored `artifacts/`; local caches and cap
+reservations are under `data/`. Opt-ins and spending caps live only in
+`config/integrations.local.yaml`, never in the profile or public examples.
 
-## The three-tier model
+## Tiers and non-negotiables
 
-Every job posting's ATS host gets classified (`src/job_apply_kit/tier.py`,
-overridable in `config/tier_overrides.yaml` -- shared/committed -- and
-`config/tier_overrides.local.yaml` -- personal, gitignored, merged on
-top) into exactly one tier:
+| Tier | Meaning | Hosts |
+|---|---|---|
+| 1 | Read-only public API fetch, no login or browser | Greenhouse, Lever, Ashby |
+| 2 | Attended extension-assisted application, human review/submit | Workday, iCIMS, SmartRecruiters |
+| 3 | Curated manual application | Anything unrecognized |
 
-| Tier | Name | What happens | Example hosts |
-|---|---|---|---|
-| 1 | Unattended, deterministic | Fetched and read via a public API this kit actually implements (`sources/greenhouse.py`, `lever.py`, `ashby.py`), no login, no CAPTCHA, no browser | `boards.greenhouse.io`, `job-boards.greenhouse.io`, `jobs.lever.co`, `jobs.ashbyhq.com` |
-| 2 | Attended, browser-extension-assisted | A browser session fills what it can from your profile; **a human reviews every field and clicks submit** | `*.myworkdayjobs.com`, `*.icims.com`, `jobs.smartrecruiters.com` |
-| 3 | Curated shortlist | No automation at all -- ranked entry + prep pack, you apply by hand | anything unrecognized |
+Tier 1 is granted only to hosts with an implemented public fetch client;
+unsupported overrides are clamped to tier 2. Ashby/Lever explicit remote
+flags are preserved alongside their original location text. Regional
+eligibility still needs human review.
 
-Tier 1 is only ever granted to a host with an implemented fetch client in
-`sources/` -- Greenhouse, Lever, and Ashby. This is enforced
-in `detect_tier()` itself, not just in the file loader -- any override
-mapping, whether it came from `config/tier_overrides*.yaml` or was passed
-in directly, is validated the same way: a value that isn't 1, 2, or 3 is
-rejected, and a tier-1 grant to anything else is clamped to tier 2 with a
-warning (`tier.py`).
-
-There is no tier that submits an application without a human present. Tier
-1 only ever *reads* public data; it never posts a form on your behalf.
-
-## Non-negotiables
-
-- **No CAPTCHA or login bypass, ever.** If a site requires solving a
-  CAPTCHA or authenticating as you to see a posting, this kit doesn't
-  touch it.
-- **No scraping logged-in sites.** Tier 1 sources are public APIs only.
-- **Caps are enforced in code, not configuration alone.** `caps.py`
-  rejects a cap of zero as a config error -- "off" is not a valid cap
-  value, don't run the tool if you don't want it to count anything.
-- **Every answer to a screener question comes only from profile facts.**
-  `answers.py` resolves a small set of well-known fields (work
-  authorization and sponsorship for a given target country,
-  relocation, salary-by-location-mode, start date, links)
-  deterministically from the profile. It resolves to `None` (never a
-  guess) when: the label is ambiguous or matches more than one category
-  (including a compound "X or Y?"/"X and Y?" label that mixes a
-  supported category with something it doesn't recognize), the backing
-  fact isn't `state: known` (a `preference` is an opinion to confirm by
-  hand, not an assertable fact -- see `Fact` in `profile.py`), a
-  work-authorization/sponsorship question has no matching country on
-  file, or a negated question ("unwilling"/"not willing"/"without"/
-  "never"/"no longer") lands on a category it can't safely invert.
-  "Eligible to work without sponsorship?" is Yes only when the profile's
-  authorization status for that country is actually authorized AND
-  `sponsorship_required` is false -- a `not_authorized` status always
-  reads No, regardless of the sponsorship flag. `resolve_reason()`
-  explains any `None`.
-- **A human clicks submit for tier 2 and tier 3.** Attended-tier
-  automation fills fields; it does not submit.
-
-## Project layout
-
-```
-.claude/skills/job-profile-interview/SKILL.md   the interview
-src/job_apply_kit/cli.py                        `job-apply-kit` console script (see CLI above)
-src/job_apply_kit/profile.py                    schema + loader + validation
-src/job_apply_kit/answers.py                    deterministic label -> fact resolver
-src/job_apply_kit/sources/greenhouse.py         tier-1 public API fetch
-src/job_apply_kit/sources/lever.py              tier-1 public API fetch
-src/job_apply_kit/sources/ashby.py              tier-1 public API fetch (with published comp)
-src/job_apply_kit/sources/probe_boards.py       find a company's Greenhouse slug
-src/job_apply_kit/rank.py                       fit scoring + reachability
-src/job_apply_kit/tier.py                       ATS host -> tier routing
-src/job_apply_kit/caps.py                       durable daily / per-company-7d cap ledger
-src/job_apply_kit/shortlist.py                  markdown shortlist + prep packs
-src/job_apply_kit/llm.py                        optional `claude -p` shim, no-op otherwise
-config/                                         example boards/blacklist/tier config
-scripts/pii_scan.py                             pre-commit PII scan
-tests/                                          pytest suite
-```
+- **No CAPTCHA/login bypass or scraping logged-in sites.** Stop on challenges,
+  rate limits, logout, or uncertainty; never work around site protections.
+- **No automatic submission, ever.** Jev is not an applier; Simplify is an
+  attended, user-controlled tool. A human verifies uploads and every field.
+- **Caps are enforced in code.** Application caps must be positive; Jev's
+  separate spending caps may be zero to block calls.
+- **Screener answers use confirmed profile facts only.** Jev output never
+  becomes a candidate fact. Ambiguous labels, unconfirmed values, compound
+  questions, unsafe negations and unknown countries resolve to `None`,
+  never a guess. `resolve_reason()` explains why.
+- **Nothing personal in git.** No real profiles, resumes, account data,
+  keys, cookies, histories, job captures, logs, or browser artifacts.
+  Keep the real filenames gitignored; examples are fictional.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Design notes in
-[docs/design.md](docs/design.md). Honest gaps in
-[docs/known-limitations.md](docs/known-limitations.md).
-
-## License
-
-MIT, see [LICENSE](LICENSE).
+[CONTRIBUTING.md](CONTRIBUTING.md) covers lint, offline tests and privacy
+checks. See [design](docs/design.md) and [known limitations](docs/known-limitations.md).
+MIT: [LICENSE](LICENSE).
