@@ -42,6 +42,7 @@ def test_fetch_jobs_parses_payload(monkeypatch):
             "url": "https://jobs.lever.co/example-co/1",
             "company": "example-co",
             "company_name": None,
+            "description": "",
             "salary_amount": None,
             "salary_currency": "USD",
             "salary_period": "annual",

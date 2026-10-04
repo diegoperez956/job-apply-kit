@@ -33,7 +33,9 @@ to nothing" as `daily_cap: 0` conflates "bounded to zero" with
 "misconfigured" -- and a bug that silently turns any other cap into zero
 would look identical to an intentional pause. `caps.py` raises
 `CapConfigError` on zero (and negative) values; if you want to pause,
-don't invoke the applier.
+don't prepare a Simplify handoff. A handoff conservatively reserves a
+slot even if the human later abandons it; this kit never submits an
+application. Jev's separate USD caps may be zero to block spending.
 
 ## Why `answers.py` is keyword matching, not an LLM
 
@@ -47,6 +49,22 @@ about for a component whose failure mode is "asserted something false."
 `llm.py` exists for the opposite kind of task -- suggestive text with no
 correctness requirement, like a first-draft resume bullet a human is
 always going to edit.
+
+## Optional requirements and portable packets
+
+Post-interview `setup` records explicit Jev/Simplify choices in a private
+local config. Jev uses bounded TypeSafe choice questions; each job URL is
+claimed once in a private SQLite cache before calling. Local budget
+reservations serialize across processes and include uncertain failures.
+No credential is persisted or looked up in another project. Keyword scoring,
+screener facts and tier classification never depend on a model.
+
+Requirements can flag a mismatch against confirmed user years/clearance;
+unknown never disqualifies. Resume evidence remains private and only its
+confirmed skills/bullets are reordered within their original role. Jev skills
+add relevance tokens, never candidate claims. Packets are Markdown, not a
+private resume/PDF template. See [integration contracts](integrations.md)
+and [attended Simplify](simplify.md).
 
 ## What's deliberately out of scope
 

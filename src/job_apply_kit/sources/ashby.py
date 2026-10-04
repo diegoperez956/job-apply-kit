@@ -80,6 +80,7 @@ def fetch_jobs(slug: str, *, timeout: float = 10.0) -> list[dict]:
                 "url": item["jobUrl"],
                 "company": slug,
                 "company_name": None,
+                "description": item.get("descriptionPlain") or item.get("descriptionHtml") or "",
                 "salary_amount": amount,
                 "salary_currency": currency,
                 "salary_period": period,

@@ -21,6 +21,17 @@ seniority:
   value: "mid"  # one of: junior, mid, senior, staff, principal (freeform, kept as string)
   state: known
 
+# Fictional confirmed qualifications for the optional Jev demo.
+skills:
+  value: [Python, SQL]
+  state: known
+experience_years:
+  value: 2
+  state: known
+security_clearance:
+  value: false
+  state: known
+
 location_mode:
   value: ["remote", "hybrid"]  # subset of: remote, hybrid, onsite
   state: known

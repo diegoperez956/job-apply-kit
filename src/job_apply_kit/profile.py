@@ -16,7 +16,7 @@ consumes the profile) can tell a confirmed answer from a guess:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Generic, Literal, TypeVar
+from typing import Annotated, Generic, Literal, TypeVar
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError
@@ -73,6 +73,11 @@ class CandidateProfile(BaseModel):
 
     target_roles: Fact[list[str]]
     seniority: Fact[str]
+    skills: Fact[list[str]] = Field(default_factory=lambda: Fact(value=[]))
+    experience_years: Fact[Annotated[float, Field(ge=0, allow_inf_nan=False)] | None] = Field(
+        default_factory=lambda: Fact(value=None)
+    )
+    security_clearance: Fact[bool | None] = Field(default_factory=lambda: Fact(value=None))
 
     # subset of {"remote", "hybrid", "onsite"} the candidate will accept
     location_mode: Fact[list[str]]

@@ -19,6 +19,9 @@ def make_profile(**overrides) -> CandidateProfile:
     base = dict(
         target_roles=Fact(value=["Software Engineer", "Backend Engineer"], state="known"),
         seniority=Fact(value="senior", state="known"),
+        skills=Fact(value=["Python", "SQL"], state="known"),
+        experience_years=Fact(value=None, state="known"),
+        security_clearance=Fact(value=None, state="known"),
         location_mode=Fact(value=["remote", "hybrid"], state="known"),
         geography=Fact(value=["US-remote", "Austin, TX"], state="known"),
         comp_floor_by_mode={

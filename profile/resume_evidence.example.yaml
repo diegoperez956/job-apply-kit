@@ -1,0 +1,15 @@
+# FICTIONAL evidence for the offline demo. Never use these claims in a real application.
+# Copy to gitignored profile/resume_evidence.yaml and replace with your own verified facts.
+# No generated summary or invented experience. Unknown/preference evidence is omitted.
+skills:
+  value: [SQL, Python]
+  state: known
+experience:
+  - label:
+      value: Example Project
+      state: known
+    bullets:
+      value:
+        - Built SQL reports for a fictional project.
+        - Built Python tools for a fictional project.
+      state: known
