@@ -66,8 +66,8 @@ Demo jobs use a separate cache and a mocked transport.
 Keyword fit scores, tiers and screener answers remain deterministic.
 `decision_policy.py` flags years/clearance mismatches only against confirmed
 user facts; unknown is not a negative signal. A requirements mismatch blocks
-a Simplify handoff until reviewed; an ordinary packet can still be prepared
-for inspection. Model output never becomes a candidate fact.
+a Simplify handoff (no override exists); an ordinary packet can still be
+prepared for inspection. Model output never becomes a candidate fact.
 
 `resume_tailor.py` uses the job text plus extracted required/preferred skills
 to reorder existing, confirmed evidence. Additive relevance is not permission
