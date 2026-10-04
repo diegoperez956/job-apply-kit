@@ -27,8 +27,10 @@ class ResumeEvidence(BaseModel):
     experience: list[ResumeBlock] = Field(default_factory=list)
 
 
-def load_evidence(path: Path = DEFAULT_EVIDENCE) -> ResumeEvidence:
+def load_evidence(path: Path = DEFAULT_EVIDENCE, *, required: bool = False) -> ResumeEvidence:
     if not path.exists():
+        if required:
+            raise IntegrationError("resume evidence source must exist")
         return ResumeEvidence()
     try:
         return ResumeEvidence.model_validate(yaml.safe_load(path.read_text()))

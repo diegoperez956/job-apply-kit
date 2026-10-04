@@ -21,6 +21,11 @@ Honest gaps, not bugs to file:
   location. Ranking uses simple remote/substring matching, not geocoding
   or regional policy checks. Review country, state, and timezone limits
   yourself even when `location_ok` is true.
+- **Run observation is local preparation history, not application outcomes.**
+  The kit cannot tell whether a human submitted, received a reply, or hit a
+  browser challenge. Self-heal uses a closed catalog (currently board-slug
+  whitespace only), not general autonomous code repair. Unknown failures need
+  manual review; see [the repair contract](run-observation.md).
 - **No browser automation ships in this kit.** Tier 2/3 postings are
   read-only shortlist entries with a prep pack; nothing here drives a
   browser, fills a form, or clicks submit. That's left to whatever

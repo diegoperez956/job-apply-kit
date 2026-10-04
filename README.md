@@ -44,7 +44,7 @@ python -m venv .venv
 
 # Run /job-profile-interview in Claude Code, or try the fictional profile:
 cp profile/candidate_profile.example.yaml profile/candidate_profile.yaml
-cp profile/resume_evidence.example.yaml profile/resume_evidence.yaml
+.venv/bin/job-apply-kit resume-update profile/resume_evidence.example.yaml
 .venv/bin/job-apply-kit interview-check
 .venv/bin/job-apply-kit setup             # answer no, then no for this demo
 .venv/bin/job-apply-kit discover --demo
@@ -115,6 +115,31 @@ and bullets **within their original role**. No addition, deletion, rewritten
 claim, generated summary, LaTeX template, or PDF is involved. Unknown evidence
 is omitted; without evidence you attach your own reviewed resume.
 
+### Keep the resume source current
+
+Start with an evidence draft (YAML, not a PDF):
+
+```bash
+cp profile/resume_evidence.example.yaml profile/resume-draft.local.yaml
+# Edit this private draft with your current skills, roles and bullets.
+# Keep uncertain claims requires_confirmation; mark known only after your review.
+.venv/bin/job-apply-kit resume-update profile/resume-draft.local.yaml --check
+.venv/bin/job-apply-kit resume-update profile/resume-draft.local.yaml
+.venv/bin/job-apply-kit discover --demo
+.venv/bin/job-apply-kit packet artifacts/ranked_jobs.jsonl
+```
+
+`resume-update` validates both the candidate profile and evidence with the existing
+schemas, then atomically replaces `profile/resume_evidence.yaml`. Invalid/missing
+input leaves the old source untouched. It does not extract a resume, invent text,
+change Fact states, or overwrite the candidate profile/public example. Update
+candidate facts separately through the interview or manual editing plus
+`interview-check`. Drafts named `profile/*.local.yaml` are gitignored. If using
+`--evidence` with another destination, keep it private/gitignored and pass that
+same path to `discover` and `packet`. Regenerate old packets after each update;
+only future runs read the new source. Confirmed evidence skills also feed
+optional requirements matching, exactly as before.
+
 Simplify Copilot is installed and operated by **you** in your own browser.
 The kit prepares the packet and checklist; it does not launch a browser,
 log in, fill a form, read cookies, or call a Simplify API. After interactive
@@ -135,6 +160,25 @@ submitted. Missing/invalid caps, a blacklist hit, or a known requirements
 mismatch blocks the handoff. A mismatch flagged in the ranked JSONL still
 blocks it later, even without `TYPESAFE_API_KEY` in that shell. Read [Simplify setup and account risks](docs/simplify.md).
 
+## Observe runs and bounded self-heal
+
+```bash
+.venv/bin/job-apply-kit run-status
+.venv/bin/job-apply-kit run-status --target '<board-slug-or-job-url>'
+.venv/bin/job-apply-kit self-heal          # report/preview only
+.venv/bin/job-apply-kit self-heal --apply  # explicit, test-gated known repair
+```
+
+Private structured observations live in `data/runs.sqlite3`: recent outcomes
+and failures per source/application reference, including skipped boards.
+No raw job/profile text, URLs, credentials, or exception messages are stored.
+Packets/reservations are **not** submission confirmations; the kit cannot observe
+browser outcomes. Self-heal currently repairs only observed board-token whitespace
+in `config/boards.yaml`, at most 60 changed lines, with offline tests green before
+and after (rollback on failure). Unknown problems are reported, never patched.
+Caps, blacklists, Fact checks, login/CAPTCHA boundaries and human submit remain
+unchanged. See [observation and repair contract](docs/run-observation.md).
+
 ## CLI
 
 Use `.venv/bin/job-apply-kit` if your virtual environment isn't activated.
@@ -142,6 +186,9 @@ Use `.venv/bin/job-apply-kit` if your virtual environment isn't activated.
 | Command | Output |
 |---|---|
 | `interview-check [--profile PATH]` | Validate the profile; list unconfirmed facts. |
+| `resume-update SOURCE.yaml [--profile PATH] [--evidence PATH] [--check]` | Validate/install user-edited resume evidence; check-only leaves source unchanged. |
+| `run-status [--limit N] [--target SLUG\|URL]` | Recent observations/failure summaries; not submission tracking. |
+| `self-heal [--apply]` | Report/preview; explicit test-gated catalogued config repair only. |
 | `setup [--jev yes\|no] [--simplify yes\|no]` | Post-interview opt-ins; local config only, no secrets. Interactive unless both choices supplied. |
 | `probe-boards [--keyword K] SLUG...` | Probe public Greenhouse board slugs. |
 | `discover [--demo] [--profile PATH] [--boards PATH] [--evidence PATH] [--out PATH]` | Fetch, blacklist-filter, keyword-rank, optionally extract requirements, tier, write JSONL. |
@@ -149,7 +196,8 @@ Use `.venv/bin/job-apply-kit` if your virtual environment isn't activated.
 | `shortlist JOBS.jsonl [--profile PATH] [--out PATH]` | Ranked overview and suggestions explicitly marked `SUGGESTION`. |
 | `caps status [--db PATH] [--company NAME]...` | Read-only reservation usage. |
 
-Default outputs are under gitignored `artifacts/`; local caches and cap
+Global `--run-log PATH` goes before the command and overrides the private run DB.
+Default outputs are under gitignored `artifacts/`; local caches, run observations and cap
 reservations are under `data/`. Opt-ins and spending caps live only in
 `config/integrations.local.yaml`, never in the profile or public examples.
 
