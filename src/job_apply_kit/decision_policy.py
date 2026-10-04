@@ -26,3 +26,12 @@ def requirement_mismatches(requirements: dict | None, profile: CandidateProfile)
     ):
         reasons.append("JD requires clearance; candidate confirms no clearance")
     return reasons
+
+
+def review_reasons(job: dict, profile: CandidateProfile) -> list[str]:
+    """Persisted ranking flags stay binding even when current requirements are unavailable."""
+    reasons = list(job.get("review_reasons") or [])
+    if job.get("decision") == "review_mismatch" and not reasons:
+        reasons.append("ranking flagged a requirements mismatch")
+    reasons += requirement_mismatches(job.get("requirements"), profile)
+    return list(dict.fromkeys(reasons))

@@ -28,8 +28,8 @@ The process environment is the only credential source.
   probabilities. Six scalar questions plus at most 25 deduplicated,
   confirmed skill names. No unverified list/score primitives.
 - Job HTML is unescaped and stripped. The 4,000-character window prioritizes
-  requirements headings. The full cleaned text also supplies the first
-  numeric years match; both heuristics need human verification.
+  requirements headings. Years come only from the validated Jev answer;
+  extracted requirements still need human verification.
 - Request body at most 32 KiB, response at most 128 KiB, ten-second timeout,
   no redirects or automatic retries. Errors never include raw bodies or keys.
 - Each answer is checked separately: real enum choice, numeric confidence

@@ -6,7 +6,7 @@ from html import escape
 from urllib.parse import urlsplit
 
 from .answers import resolve_answer, resolve_reason
-from .decision_policy import requirement_mismatches
+from .decision_policy import review_reasons
 from .integrations import IntegrationError
 from .profile import CandidateProfile
 from .resume_tailor import ResumeEvidence, reorder_evidence
@@ -42,9 +42,9 @@ def render_packet(
         lines.extend("- " + escape(text) for text in block.bullets.value)
     if not included:
         lines.append("No confirmed work bullets supplied. Attach your own reviewed resume.")
-    reasons = requirement_mismatches(job.get("requirements"), profile)
+    reasons = review_reasons(job, profile)
     lines.append("\n## Requirements to verify (not candidate facts)")
-    lines.extend("- NEEDS REVIEW: " + reason for reason in reasons)
+    lines.extend("- NEEDS REVIEW: " + escape(reason) for reason in reasons)
     if not reasons:
         lines.append("No known years/clearance mismatch; this is not an eligibility guarantee.")
     lines.append("\n## Screener answers (profile facts only)")

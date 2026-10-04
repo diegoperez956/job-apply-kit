@@ -153,7 +153,7 @@ def _choice(answer: object, criteria: dict) -> str | None:
     return choice
 
 
-def _parse(document: dict, questions: dict, description: str, skills: list[str]) -> dict:
+def _parse(document: dict, questions: dict, skills: list[str]) -> dict:
     answers = document.get("answers")
     answers = answers if isinstance(answers, dict) else {}
     labels = {name: _choice(answers.get(name), q["criteria"]) for name, q in questions.items()}
@@ -168,10 +168,6 @@ def _parse(document: dict, questions: dict, description: str, skills: list[str])
         if years is not None and years.isdigit()
         else None
     )
-    # The first plain numeric years requirement uses the FULL cleaned JD, not its window.
-    match = re.search(r"(\d+)\+?\s*(?:or\s+more\s+)?years", description, re.I)
-    if match and len(match.group(1)) <= 3:
-        result["min_years"] = int(match.group(1))
     result["clearance_required"] = {"required": True, "not_required": False}.get(
         labels.get("clearance_required")
     )
@@ -227,7 +223,7 @@ class JevClient:
             cached, claimed = self._claim(job_key, reserve)
             if not claimed:
                 return cached
-            return self._extract(job_key, body, key, questions, description, skills, reserve)
+            return self._extract(job_key, body, key, questions, skills, reserve)
         except (sqlite3.Error, OSError, ValueError, InvalidOperation):
             self.last_status = "keyword-only: local cache unavailable"
             return None
@@ -278,7 +274,7 @@ class JevClient:
                 conn.commit()
             conn.close()
 
-    def _extract(self, job_key, body, key, questions, description, skills, reserve):
+    def _extract(self, job_key, body, key, questions, skills, reserve):
         try:
             with httpx.Client(
                 timeout=10, follow_redirects=False, transport=self.transport
@@ -303,7 +299,7 @@ class JevClient:
             # No raw request/response/error bodies or credentials in diagnostics.
             self.last_status = "keyword-only: Jev request failed"
             return None
-        requirements = _parse(document, questions, description, skills)
+        requirements = _parse(document, questions, skills)
         usage = document.get("usage")
         tokens = usage.get("input_tokens") if isinstance(usage, dict) else None
         actual = (

@@ -53,5 +53,5 @@ Every module change should come with a test in `tests/`. Keep tests
 fast and offline -- mock `httpx` calls (see `tests/test_greenhouse.py`),
 don't hit real APIs. Exercise Jev at the HTTP transport boundary with
 `httpx.MockTransport`; test cache/budget behavior through `JevClient.get()`.
-Test setup/discover/rank/packet through the CLI, and assertions on emitted
+Test setup/discover/packet through the CLI, and assertions on emitted
 packets/config as owned output contracts, not greps of implementation code.

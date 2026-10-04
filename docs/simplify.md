@@ -32,8 +32,10 @@ control. No scheduled/unattended lane exists here.
 
 Missing opt-in/risk acceptance, missing or invalid caps, an exhausted cap,
 a current blacklist hit, or a known years/clearance mismatch refuses the
-handoff. A demo packet cannot authorize a handoff. Ordinary `packet` output
-is still available for manual review without the extension.
+handoff. A mismatch recorded by `discover` (`decision: review_mismatch` /
+`review_reasons`) keeps refusing it even when no key is set later. A demo
+packet cannot authorize a handoff. Ordinary `packet` output is still
+available for manual review without the extension.
 
 Each successful handoff conservatively reserves a slot *before* producing
 the file. Recreating it counts again. An abandoned handoff is not refunded,

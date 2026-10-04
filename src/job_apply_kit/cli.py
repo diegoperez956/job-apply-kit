@@ -26,7 +26,7 @@ from .caps import (
     load_caps_from_env,
     normalize_company,
 )
-from .decision_policy import requirement_mismatches
+from .decision_policy import requirement_mismatches, review_reasons
 from .integrations import IntegrationError, load_integrations, setup, typesafe_key
 from .jd_requirements import JevClient, Requirements
 from .packet import render_packet
@@ -191,9 +191,11 @@ def cmd_discover(args: argparse.Namespace) -> int:
         print(f"invalid profile: {e}", file=sys.stderr)
         return 1
 
+    overrides = _load_merged_tier_overrides()  # Validate overrides before fetching.
+    blacklist = _blacklist(profile)
     if args.demo:
         print("DEMO: fictional jobs and mocked Jev; no network calls.")
-        return _write_ranked(demo.postings(), profile, args)
+        return _write_ranked(demo.postings(), profile, args, blacklist, overrides)
 
     boards_path = Path(args.boards)
     if not boards_path.exists():
@@ -210,9 +212,6 @@ def cmd_discover(args: argparse.Namespace) -> int:
         print(f"no greenhouse/lever/ashby entries in {boards_path}", file=sys.stderr)
         return 1
 
-    _load_merged_tier_overrides()  # Validate overrides before fetching.
-    blacklisted_names, blacklisted_domains = _load_blacklisted_companies(DEFAULT_BLACKLIST_PATH)
-    blacklisted_names |= {normalize_company(c) for c in profile.employer_blacklist.value}
     postings: list[dict] = []
     for name, slugs in boards.items():
         _, fetch, error = SOURCES[name]
@@ -222,24 +221,7 @@ def cmd_discover(args: argparse.Namespace) -> int:
             except error as e:
                 print(f"skipping {name} board {slug!r}: {e}", file=sys.stderr)
 
-    if blacklisted_names or blacklisted_domains:
-        before = len(postings)
-        postings = [
-            p
-            for p in postings
-            if not _is_blacklisted(
-                p["company"],
-                p.get("company_name"),
-                p["url"],
-                blacklisted_names,
-                blacklisted_domains,
-            )
-        ]
-        skipped = before - len(postings)
-        if skipped:
-            print(f"skipped {skipped} blacklisted posting(s)", file=sys.stderr)
-
-    return _write_ranked(postings, profile, args)
+    return _write_ranked(postings, profile, args, blacklist, overrides)
 
 
 def _read_postings(path: str) -> list[dict]:
@@ -253,22 +235,29 @@ def _read_postings(path: str) -> list[dict]:
                 raise ConfigStructureError("job text fields must be strings or null")
             if key != "company_name" and key in row and value is None:
                 row[key] = ""
+        reasons = row.get("review_reasons")
+        if reasons is not None and (
+            not isinstance(reasons, list) or not all(isinstance(r, str) for r in reasons)
+        ):
+            raise ConfigStructureError("job review_reasons must be a list of strings")
     return rows
 
 
-def _blocked(job: dict, profile) -> bool:
+def _blacklist(profile) -> tuple[set[str], set[str]]:
     names, domains = _load_blacklisted_companies(DEFAULT_BLACKLIST_PATH)
-    names |= {normalize_company(c) for c in profile.employer_blacklist.value}
-    return _is_blacklisted(
-        job.get("company", ""), job.get("company_name"), job["url"], names, domains
-    )
+    return names | {normalize_company(c) for c in profile.employer_blacklist.value}, domains
 
 
-def _write_ranked(postings: list[dict], profile, args) -> int:
-    postings = [p for p in postings if not _blocked(p, profile)]
+def _blocked(job: dict, blacklist: tuple[set[str], set[str]]) -> bool:
+    return _is_blacklisted(job.get("company", ""), job.get("company_name"), job["url"], *blacklist)
+
+
+def _write_ranked(postings: list[dict], profile, args, blacklist, overrides) -> int:
+    before = len(postings)
+    postings = [p for p in postings if not _blocked(p, blacklist)]
+    if len(postings) < before:
+        print(f"skipped {before - len(postings)} blacklisted posting(s)", file=sys.stderr)
     settings = load_integrations()
-    if any(p.get("demo") for p in postings) and settings.jev_enabled and not args.demo:
-        raise IntegrationError("use --demo when reranking demo jobs with Jev enabled")
     evidence = load_evidence(Path(args.evidence))
     skills = profile.skills.value if profile.skills.state == "known" else []
     if evidence.skills.state == "known":
@@ -290,7 +279,6 @@ def _write_ranked(postings: list[dict], profile, args) -> int:
         posting["decision"] = "review_mismatch" if posting["review_reasons"] else "human_review"
         by_url[posting["url"]] = posting
     ranked = rank_jobs(list(by_url.values()), profile)
-    overrides = _load_merged_tier_overrides()
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w") as stream:
@@ -299,12 +287,6 @@ def _write_ranked(postings: list[dict], profile, args) -> int:
             stream.write(json.dumps(row) + "\n")
     print(f"wrote {len(ranked)} ranked job(s) -> {out_path}")
     return 0
-
-
-def cmd_rank(args: argparse.Namespace) -> int:
-    if args.demo:
-        print("DEMO: mocked Jev only; output is not a real-application handoff.")
-    return _write_ranked(_read_postings(args.jobs), load_profile(args.profile), args)
 
 
 def cmd_packet(args: argparse.Namespace) -> int:
@@ -325,12 +307,12 @@ def cmd_packet(args: argparse.Namespace) -> int:
             raise IntegrationError("invalid requirement snapshot in job JSONL") from exc
     if args.simplify and job.get("demo"):
         raise IntegrationError("demo packets cannot authorize a Simplify handoff")
-    if _blocked(job, profile):
+    if _blocked(job, _blacklist(profile)):
         raise IntegrationError("packet refused: current blacklist blocks this job")
     if args.simplify:
         if not settings.simplify_enabled or not settings.simplify_risk_accepted:
             raise IntegrationError("Simplify handoff requires setup opt-in and risk acceptance")
-        if requirement_mismatches(job.get("requirements"), profile):
+        if review_reasons(job, profile):
             raise IntegrationError("verify requirements mismatch before a Simplify handoff")
     content = render_packet(
         job, profile, load_evidence(Path(args.evidence)), simplify=args.simplify
@@ -423,14 +405,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--evidence", default=str(DEFAULT_EVIDENCE))
     p.add_argument("--demo", action="store_true", help="fictional offline jobs and mocked Jev")
     p.set_defaults(func=cmd_discover)
-
-    p = sub.add_parser("rank", help="rerank job JSONL; optional cached Jev requirements")
-    p.add_argument("jobs")
-    p.add_argument("--profile", default=str(DEFAULT_PROFILE_PATH))
-    p.add_argument("--evidence", default=str(DEFAULT_EVIDENCE))
-    p.add_argument("--out", default=str(DEFAULT_DISCOVER_OUT))
-    p.add_argument("--demo", action="store_true", help="mock Jev and use its separate demo cache")
-    p.set_defaults(func=cmd_rank)
 
     p = sub.add_parser("packet", help="prepare one Markdown packet; never operate a browser")
     p.add_argument("jobs")

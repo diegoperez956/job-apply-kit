@@ -74,7 +74,7 @@ def test_one_direct_api_call_per_job_persists_across_process_clients(tmp_path, m
     db = tmp_path / "cache.db"
     client = JevClient(settings, db=db, transport=httpx.MockTransport(server))
     result = client.get(POSTING, ["Python"])
-    assert result["min_years"] == 5  # Full JD regex wins over the differing model choice.
+    assert result["min_years"] == 2  # The validated Jev label wins over JD text "5+ years".
     assert result["required_skills"] == ["Python"]
     restart = JevClient(settings, db=db, transport=httpx.MockTransport(server))
     assert restart.get(POSTING, ["Python"]) == result
@@ -200,7 +200,7 @@ def test_concurrent_clients_claim_job_before_transport(tmp_path, monkeypatch):
         results = list(pool.map(run, range(4)))
     assert len(calls) == 1
     assert any(result is not None for result in results)
-    assert run(None)["min_years"] == 5
+    assert run(None)["min_years"] == 2
     assert len(calls) == 1
 
 

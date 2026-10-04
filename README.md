@@ -48,7 +48,6 @@ cp profile/resume_evidence.example.yaml profile/resume_evidence.yaml
 .venv/bin/job-apply-kit interview-check
 .venv/bin/job-apply-kit setup             # answer no, then no for this demo
 .venv/bin/job-apply-kit discover --demo
-.venv/bin/job-apply-kit rank artifacts/ranked_jobs.jsonl --demo
 .venv/bin/job-apply-kit packet artifacts/ranked_jobs.jsonl
 .venv/bin/job-apply-kit shortlist artifacts/ranked_jobs.jsonl --out artifacts/shortlist.md
 .venv/bin/pytest -q
@@ -65,7 +64,6 @@ cp config/boards.example.yaml config/boards.yaml
 cp config/blacklist.example.yaml config/blacklist.yaml
 # Replace example board slugs; edit the blacklist for yourself.
 .venv/bin/job-apply-kit discover
-.venv/bin/job-apply-kit rank artifacts/ranked_jobs.jsonl
 .venv/bin/job-apply-kit packet artifacts/ranked_jobs.jsonl --url 'https://<actual-job-url>'
 ```
 
@@ -77,16 +75,14 @@ years, clearance, degree, work mode, sponsorship, seniority and
 required/preferred skills. Only the job text and up to 25 confirmed skill
 names are sent; no resume bullets, contact details, or screener answers.
 
-Responses are validated per field; invalid answers stay unknown. A
-numeric years requirement also uses the full cleaned JD as a local regex
-cross-check. Confirmed years/clearance mismatches are flagged for human
+Responses are validated per field; invalid answers stay unknown. Confirmed years/clearance mismatches are flagged for human
 review, using **your** facts, never a fixed personal eligibility cutoff.
 The keyword fit score remains deterministic. Extracted skills add relevance
 signals when reordering your own confirmed resume evidence; they never
 create skills or claims.
 
 There is at most one request attempt per job URL in the local cache,
-including failed/uncertain attempts. Re-ranking and packet preparation
+including failed/uncertain attempts. Re-running `discover` and packet preparation
 reuse the result; packets never call TypeSafe. Requests reserve estimated
 spend atomically before calling, against local UTC daily/monthly caps.
 Failed attempts still count. These conservative local estimates are **not**
@@ -99,7 +95,6 @@ To try the opt-in path offline with a **fake** key:
 TYPESAFE_API_KEY=demo-only .venv/bin/job-apply-kit setup --jev yes --simplify no \
   --daily-budget 0.01 --monthly-budget 0.05
 TYPESAFE_API_KEY=demo-only .venv/bin/job-apply-kit discover --demo
-TYPESAFE_API_KEY=demo-only .venv/bin/job-apply-kit rank artifacts/ranked_jobs.jsonl --demo
 TYPESAFE_API_KEY=demo-only .venv/bin/job-apply-kit packet artifacts/ranked_jobs.jsonl
 # Disable again, or run interactive setup for real use:
 .venv/bin/job-apply-kit setup --jev no --simplify no
@@ -137,7 +132,8 @@ A Simplify handoff **reserves a cap slot before preparing the file**.
 Repeated handoffs count again; cancelled/unused reservations aren't
 refunded automatically. This is not evidence that an application was
 submitted. Missing/invalid caps, a blacklist hit, or a known requirements
-mismatch blocks the handoff. Read [Simplify setup and account risks](docs/simplify.md).
+mismatch blocks the handoff. A mismatch flagged in the ranked JSONL still
+blocks it later, even without `TYPESAFE_API_KEY` in that shell. Read [Simplify setup and account risks](docs/simplify.md).
 
 ## CLI
 
@@ -149,7 +145,6 @@ Use `.venv/bin/job-apply-kit` if your virtual environment isn't activated.
 | `setup [--jev yes\|no] [--simplify yes\|no]` | Post-interview opt-ins; local config only, no secrets. Interactive unless both choices supplied. |
 | `probe-boards [--keyword K] SLUG...` | Probe public Greenhouse board slugs. |
 | `discover [--demo] [--profile PATH] [--boards PATH] [--evidence PATH] [--out PATH]` | Fetch, blacklist-filter, keyword-rank, optionally extract requirements, tier, write JSONL. |
-| `rank JOBS.jsonl [--demo] [--profile PATH] [--evidence PATH] [--out PATH]` | Rerank existing jobs with current facts/blacklist and the optional cache. |
 | `packet JOBS.jsonl [--url URL] [--evidence PATH] [--out PATH] [--simplify]` | One Markdown application packet; select a URL when several jobs are present. |
 | `shortlist JOBS.jsonl [--profile PATH] [--out PATH]` | Ranked overview and suggestions explicitly marked `SUGGESTION`. |
 | `caps status [--db PATH] [--company NAME]...` | Read-only reservation usage. |

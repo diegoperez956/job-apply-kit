@@ -16,13 +16,12 @@ def _profile(tmp_path, profile):
     )
 
 
-def test_no_key_cli_flow_discover_rank_packet_is_offline(tmp_path, monkeypatch, profile):
+def test_no_key_cli_flow_discover_packet_is_offline(tmp_path, monkeypatch, profile):
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
     _profile(tmp_path, profile)
     assert cli.main(["setup", "--jev", "no", "--simplify", "no"]) == 0
     assert cli.main(["discover", "--demo"]) == 0
-    assert cli.main(["rank", "artifacts/ranked_jobs.jsonl"]) == 0
     assert cli.main(["packet", "artifacts/ranked_jobs.jsonl"]) == 0
     rows = [
         json.loads(line)
@@ -50,6 +49,7 @@ def test_fake_key_flow_uses_one_mocked_jev_request_and_packet_reuses_snapshot(
         answers = {}
         for name, question in body["questions"].items():
             choice = "required" if name.startswith("skill::") else "unspecified"
+            choice = "2" if name == "min_years" else choice
             answers[name] = {
                 "choice": choice,
                 "confidence": 1,
@@ -75,15 +75,14 @@ def test_fake_key_flow_uses_one_mocked_jev_request_and_packet_reuses_snapshot(
         == 0
     )
     assert cli.main(["discover", "--demo"], jev_transport=transport) == 0
-    assert cli.main(["rank", "artifacts/ranked_jobs.jsonl", "--demo"], jev_transport=transport) == 0
     assert cli.main(["packet", "artifacts/ranked_jobs.jsonl"]) == 0
     assert len(calls) == 1
     row = json.loads((tmp_path / "artifacts/ranked_jobs.jsonl").read_text())
     assert row["requirements"]["min_years"] == 2
     assert row["requirements"]["required_skills"] == ["Python", "SQL"]
     assert row["requirements_source"] == "jev"
-    # Accidentally dropping demo mode cannot bill the real endpoint for fake jobs.
-    assert cli.main(["rank", "artifacts/ranked_jobs.jsonl"]) == 2
+    assert cli.main(["discover", "--demo"], jev_transport=transport) == 0
+    assert len(calls) == 1
 
 
 def test_simplify_handoff_requires_optin_risk_and_caps(tmp_path, monkeypatch, profile):
@@ -221,4 +220,46 @@ def test_demo_cannot_authorize_simplify_and_invalid_jsonl_is_controlled(
     assert cli.main(["discover", "--demo"]) == 0
     assert cli.main(["packet", "artifacts/ranked_jobs.jsonl", "--simplify"]) == 2
     Path("bad.jsonl").write_text(json.dumps({"url": "https://example.invalid/", "title": {}}))
-    assert cli.main(["rank", "bad.jsonl"]) == 2
+    assert cli.main(["packet", "bad.jsonl"]) == 2
+
+
+def test_persisted_mismatch_blocks_simplify_without_a_key(tmp_path, monkeypatch, profile):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    monkeypatch.setenv("JOB_APPLY_DAILY_CAP", "2")
+    monkeypatch.setenv("JOB_APPLY_PER_COMPANY_CAP", "1")
+    _profile(tmp_path, profile)
+    assert (
+        cli.main(
+            [
+                "setup",
+                "--jev",
+                "yes",
+                "--simplify",
+                "yes",
+                "--accept-simplify-risk",
+                "--daily-budget",
+                "1",
+                "--monthly-budget",
+                "2",
+            ]
+        )
+        == 0
+    )
+    reason = "JD requires 6+ years; confirmed experience is 2"
+    job = {
+        "title": "Example Engineer",
+        "company": "Example Co",
+        "url": "https://jobs.lever.co/example-co/1",
+        "requirements": {"min_years": 6},
+        "review_reasons": [reason],
+        "decision": "review_mismatch",
+    }
+    Path("jobs.jsonl").write_text(json.dumps(job) + "\n")
+    assert cli.main(["packet", "jobs.jsonl", "--simplify"]) == 2
+    assert not Path("artifacts/packet.md").exists()
+    assert cli.main(["packet", "jobs.jsonl"]) == 0
+    assert f"NEEDS REVIEW: {reason}" in Path("artifacts/packet.md").read_text()
+    Path("jobs.jsonl").write_text(json.dumps({**job, "review_reasons": []}) + "\n")
+    assert cli.main(["packet", "jobs.jsonl", "--simplify", "--out", "artifacts/s.md"]) == 2
+    assert not Path("artifacts/s.md").exists()
