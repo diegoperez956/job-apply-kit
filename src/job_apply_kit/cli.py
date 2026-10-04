@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -33,6 +34,9 @@ from .packet import render_packet
 from .profile import ProfileError, load_profile, unconfirmed_facts
 from .rank import RankedJob, rank_jobs
 from .resume_tailor import DEFAULT_EVIDENCE, load_evidence
+from .resume_update import update_resume
+from .run_log import BestEffortLog, RunLog
+from .self_heal import heal
 from .shortlist import render_shortlist
 from .sources.ashby import AshbyError
 from .sources.ashby import fetch_jobs as fetch_ashby
@@ -218,8 +222,15 @@ def cmd_discover(args: argparse.Namespace) -> int:
         for slug in slugs:
             try:
                 postings.extend(fetch(slug))
-            except error as e:
+            except Exception as e:
+                args.observer.record(
+                    "discover", "failure", source=name, target=slug, code=type(e).__name__
+                )
+                if not isinstance(e, error):
+                    raise
                 print(f"skipping {name} board {slug!r}: {e}", file=sys.stderr)
+            else:
+                args.observer.record("discover", "success", source=name, target=slug)
 
     return _write_ranked(postings, profile, args, blacklist, overrides)
 
@@ -297,6 +308,7 @@ def cmd_packet(args: argparse.Namespace) -> int:
     if len(jobs) != 1:
         raise IntegrationError("select exactly one job with --url")
     job = dict(jobs[0])
+    args.observed_target = job["url"]
     settings = load_integrations()
     if not settings.jev_enabled or not typesafe_key():
         job["requirements"] = None
@@ -374,9 +386,42 @@ def cmd_caps_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_resume_update(args: argparse.Namespace) -> int:
+    return update_resume(
+        Path(args.source), Path(args.evidence), Path(args.profile), check=args.check
+    )
+
+
+def cmd_run_status(args: argparse.Namespace) -> int:
+    if not 1 <= args.limit <= 200:
+        raise IntegrationError("status limit must be between 1 and 200")
+    print(json.dumps(args.observer.report(args.limit, args.target), indent=2))
+    return 0
+
+
+def cmd_self_heal(args: argparse.Namespace) -> int:
+    return heal(args.observer, apply=args.apply)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="job-apply-kit")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser("resume-update", help="validate/install user-edited resume evidence YAML")
+    p.add_argument("source", help="existing YAML evidence draft, not a PDF or generated claims")
+    p.add_argument("--profile", default=str(DEFAULT_PROFILE_PATH))
+    p.add_argument("--evidence", default=str(DEFAULT_EVIDENCE), help="private destination")
+    p.add_argument("--check", action="store_true", help="validate only; do not write")
+    p.set_defaults(func=cmd_resume_update)
+
+    p = sub.add_parser("run-status", help="recent preparation/source failures; not submissions")
+    p.add_argument("--limit", type=int, default=20)
+    p.add_argument("--target", help="filter by original board slug or application URL")
+    p.set_defaults(func=cmd_run_status)
+
+    p = sub.add_parser("self-heal", help="report failures; preview bounded catalogued repairs")
+    p.add_argument("--apply", action="store_true", help="apply a validated catalogued repair")
+    p.set_defaults(func=cmd_self_heal)
 
     p = sub.add_parser("interview-check", help="validate profile/candidate_profile.yaml")
     p.add_argument("--profile", default=str(DEFAULT_PROFILE_PATH))
@@ -438,9 +483,21 @@ def main(argv: list[str] | None = None, *, jev_transport: httpx.BaseTransport | 
     parser = build_parser()
     args = parser.parse_args(argv)
     args.jev_transport = jev_transport
+    observer = None
+    result, code = 2, "interrupted"
+    observe = args.command != "run-status"
+    args.observed_target = getattr(args, "url", None) or ""
     try:
-        return args.func(args)
+        # Only commands that read the log need it; others observe best-effort.
+        needs_log = args.command in {"run-status", "self-heal"}
+        observer = args.observer = RunLog() if needs_log else BestEffortLog()
+        if observe:
+            observer.record(args.command, "started", target=args.observed_target)
+        result = args.func(args)
+        code = f"exit_{result}"
+        return result
     except EOFError:
+        code = "EOFError"
         print("setup requires answers; no settings changed", file=sys.stderr)
         return 2
     except (
@@ -453,7 +510,9 @@ def main(argv: list[str] | None = None, *, jev_transport: httpx.BaseTransport | 
         CapConfigError,
         CapExceededError,
         OSError,
+        sqlite3.Error,
     ) as e:
+        code = type(e).__name__
         # Every command routes through here, so this one catch covers
         # malformed config/JSONL wherever it's read (boards.yaml,
         # blacklist.yaml, tier_overrides*.yaml, a `discover` JSONL file
@@ -462,6 +521,25 @@ def main(argv: list[str] | None = None, *, jev_transport: httpx.BaseTransport | 
         # required), is a clean, exit-2 error, never a Python traceback.
         print(f"job-apply-kit: invalid config: {e}", file=sys.stderr)
         return 2
+    except Exception as e:
+        code = type(e).__name__
+        raise
+    finally:
+        if observer is not None:
+            try:
+                if observe:
+                    observer.record(
+                        args.command,
+                        "success" if result == 0 else "failure",
+                        target=args.observed_target,
+                        code=code,
+                    )
+            except (sqlite3.Error, OSError) as e:
+                # A logging outage must not mask the original error or suggest
+                # repeating a successful cap-reserving handoff.
+                print(f"run observation unavailable: {type(e).__name__}", file=sys.stderr)
+            finally:
+                observer.close()
 
 
 if __name__ == "__main__":

@@ -1,5 +1,8 @@
 profile/candidate_profile.yaml
 profile/resume_evidence.yaml
+profile/*.local.yaml
+profile/.resume-update-*
+config/.self-heal-*
 config/integrations.local.yaml
 config/blacklist.yaml
 config/boards.yaml
