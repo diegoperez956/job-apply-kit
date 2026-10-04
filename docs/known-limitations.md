@@ -11,10 +11,11 @@ Honest gaps, not bugs to file:
   `state: known` -- resolves to `None`, on purpose. It never guesses.
   Use `resolve_reason()` to see why a given label came back blank, and
   expect to answer some fields by hand.
-- **Greenhouse pay ranges are rarely exposed.** The public boards API
-  only returns salary data when the employer opted in to publish it, so
-  `comp_ok` on most postings is the neutral "unknown" state, not a real
-  reachability signal.
+- **Pay ranges are uneven across sources.** Greenhouse and Lever only
+  return salary data when the employer opted in to publish it, so
+  `comp_ok` on most of their postings is the neutral "unknown" state.
+  Ashby boards publish comp far more often. Only annual, monthly, and
+  hourly figures are read; any other pay interval stays unknown.
 - **No browser automation ships in this kit.** Tier 2/3 postings are
   read-only shortlist entries with a prep pack; nothing here drives a
   browser, fills a form, or clicks submit. That's left to whatever

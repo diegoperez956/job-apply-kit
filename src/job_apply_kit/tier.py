@@ -1,6 +1,6 @@
 """ATS tier routing.
 
-Tier 1: unattended, deterministic, public API (e.g. Greenhouse boards API).
+Tier 1: unattended, deterministic, public API (Greenhouse, Lever, Ashby).
 Tier 2: attended -- browser-extension-assisted, a human is present and
         clicks submit.
 Tier 3: curated shortlist -- unknown/unsupported host, no automation,
@@ -30,13 +30,11 @@ class TierConfigError(ValueError):
 
 DEFAULT_TIER_BY_HOST: dict[str, Tier] = {
     # Tier 1: public boards API AND an implemented fetch client in
-    # sources/ -- currently just Greenhouse (sources/greenhouse.py).
+    # sources/ (greenhouse.py, lever.py, ashby.py).
     "boards.greenhouse.io": 1,
     "job-boards.greenhouse.io": 1,
-    # Known ATS with a public job-board API but no fetch client
-    # implemented here yet -- tier 2 (attended) until sources/ gains one.
-    "jobs.lever.co": 2,
-    "jobs.ashbyhq.com": 2,
+    "jobs.lever.co": 1,
+    "jobs.ashbyhq.com": 1,
     "myworkdayjobs.com": 2,
     "icims.com": 2,
     "successfactors.com": 2,
@@ -92,7 +90,7 @@ def _validate_overrides(raw: dict, *, source: str) -> dict[str, Tier]:
         if tier_int == 1 and not _is_tier1_capable(host):
             print(
                 f"tier.py: {host!r} overridden to tier 1 but has no implemented public-API "
-                "source (only Greenhouse boards do) -- clamping to tier 2",
+                "source (only Greenhouse, Lever, Ashby do) -- clamping to tier 2",
                 file=sys.stderr,
             )
             tier_int = 2

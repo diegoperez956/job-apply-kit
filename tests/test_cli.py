@@ -336,3 +336,42 @@ def test_discover_honors_profile_employer_blacklist(tmp_path, monkeypatch, profi
         if line.strip()
     ]
     assert rows == []
+
+
+def test_discover_merges_lever_and_ashby_boards_as_tier_1(tmp_path, monkeypatch, profile):
+    monkeypatch.chdir(tmp_path)
+    _write_profile(tmp_path, profile)
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "boards.yaml").write_text(
+        "lever:\n  - slug: lever-co\nashby:\n  - slug: ashby-co\n  - slug: gone-co\n"
+    )
+
+    def posting(company, url):
+        return {"title": "Backend Engineer", "location": "Remote", "url": url, "company": company}
+
+    def fake_ashby(slug):
+        if slug == "gone-co":
+            raise cli.AshbyError("no Ashby job board found")
+        return [posting(slug, f"https://jobs.ashbyhq.com/{slug}/1")]
+
+    monkeypatch.setattr(
+        cli, "fetch_lever", lambda slug: [posting(slug, f"https://jobs.lever.co/{slug}/1")]
+    )
+    monkeypatch.setattr(cli, "fetch_ashby", fake_ashby)
+
+    assert cli.main(["discover"]) == 0
+
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "artifacts" / "ranked_jobs.jsonl").read_text().splitlines()
+    ]
+    assert {row["company"]: row["tier"] for row in rows} == {"lever-co": 1, "ashby-co": 1}
+
+
+def test_discover_lever_bad_entry_exits_2(tmp_path, monkeypatch, profile):
+    monkeypatch.chdir(tmp_path)
+    _write_profile(tmp_path, profile)
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "boards.yaml").write_text("lever:\n  - board_token: wrong-key\n")
+
+    assert cli.main(["discover"]) == 2

@@ -8,19 +8,43 @@ packs grounded only in what you actually told it.
 It is not a mass-application bot. It will not click "submit" for you, log
 into a site on your behalf, or solve a CAPTCHA. See [Non-negotiables](#non-negotiables).
 
+## Start here: the interview
+
+Everything downstream reads one file, `profile/candidate_profile.yaml`,
+and the interview is how you build it. In Claude Code, from this repo:
+
+```
+/job-profile-interview
+```
+
+It's a grill-me interview
+(`.claude/skills/job-profile-interview/SKILL.md`): one question at a
+time, a recommended answer offered each time, your response recorded
+with an honest state -- `known`, `preference`, or
+`requires_confirmation`. It walks target roles, seniority, comp floors
+by location mode (with currency/period), remote/hybrid/onsite,
+geography, per-country work authorization and sponsorship, relocation,
+start date, non-compete, industries to avoid, employer blacklist,
+dealbreakers, self-ID preferences, and a screener-answer bank, then
+writes the profile against the schema in `src/job_apply_kit/profile.py`.
+
+Then check it (after the [quickstart](#5-minute-quickstart) install):
+
+```bash
+job-apply-kit interview-check   # validates, lists anything still requires_confirmation
+```
+
+No Claude Code? Copy `profile/candidate_profile.example.yaml` (fake
+data, full shape) to `profile/candidate_profile.yaml` and fill it in by
+hand. The real file is gitignored -- keep it that way.
+
 ## What it does
 
-1. **Interview** -- `/job-profile-interview` asks you one question at a
-   time (with a recommended default), walks a decision tree covering
-   target roles, seniority, comp floors, location mode, geography, work
-   authorization, sponsorship, relocation, start date, non-competes,
-   industries/employers to avoid, dealbreakers, self-ID preferences, and a
-   bank of screener answers -- and writes the result to
-   `profile/candidate_profile.yaml`. Every answer is tagged `known`,
-   `preference`, or `requires_confirmation` so downstream code never
-   treats a guess as a fact.
-2. **Source** -- pulls open jobs from public, no-login ATS APIs (starting
-   with Greenhouse's boards API).
+1. **Interview** -- see [Start here](#start-here-the-interview). Every
+   answer is tagged `known`, `preference`, or `requires_confirmation` so
+   downstream code never treats a guess as a fact.
+2. **Source** -- pulls open jobs from public, no-login ATS APIs:
+   Greenhouse, Lever, and Ashby job boards.
 3. **Rank** -- drops any posting from a blacklisted company
    (`config/blacklist.yaml`, personal and gitignored), then scores what's
    left for title/keyword fit against your target roles and checks
@@ -45,11 +69,7 @@ git clone <this-repo> && cd job-apply-kit
 python -m venv .venv && .venv/bin/pip install -e .[dev]
 ./scripts/install_hooks.sh          # pre-commit PII scan, once
 
-# In Claude Code:
-#   /job-profile-interview
-# ... or by hand:
-cp profile/candidate_profile.example.yaml profile/candidate_profile.yaml
-$EDITOR profile/candidate_profile.yaml
+# 1. In Claude Code: /job-profile-interview   (see Start here above)
 
 # Copy every *.example.yaml in config/ to its real (gitignored) name --
 # these hold personal data (board list, blacklist) and must never be
@@ -79,7 +99,7 @@ nothing here submits an application. Commands:
 |---|---|
 | `job-apply-kit interview-check [--profile PATH]` | Loads and validates `profile/candidate_profile.yaml` against the schema; lists any fact still `requires_confirmation`. |
 | `job-apply-kit probe-boards [--keyword K] SLUG...` | Checks whether each Greenhouse board-token slug exists and reports matching open jobs. |
-| `job-apply-kit discover [--profile PATH] [--boards PATH] [--out PATH]` | Fetches every board in `config/boards.yaml` via the Greenhouse boards API, drops any posting whose company matches `config/blacklist.yaml` (if present), ranks and tiers what's left, writes one JSON row per job to a JSONL file (default `artifacts/ranked_jobs.jsonl`). |
+| `job-apply-kit discover [--profile PATH] [--boards PATH] [--out PATH]` | Fetches every board in `config/boards.yaml` (`greenhouse`, `lever`, `ashby` sections) via their public job-board APIs, drops any posting whose company matches `config/blacklist.yaml` (if present), ranks and tiers what's left, writes one JSON row per job to a JSONL file (default `artifacts/ranked_jobs.jsonl`). |
 | `job-apply-kit shortlist JOBS.jsonl [--profile PATH] [--out PATH]` | Renders the markdown shortlist + prep packs from a `discover` JSONL file. |
 | `job-apply-kit caps status [--db PATH] [--company NAME]...` | Prints current daily and per-company-7d usage from the durable caps ledger (`data/caps.sqlite3` by default). |
 
@@ -97,14 +117,12 @@ top) into exactly one tier:
 
 | Tier | Name | What happens | Example hosts |
 |---|---|---|---|
-| 1 | Unattended, deterministic | Fetched and read via a public API this kit actually implements (Greenhouse only, `sources/greenhouse.py`), no login, no CAPTCHA, no browser | `boards.greenhouse.io`, `job-boards.greenhouse.io` |
-| 2 | Attended, browser-extension-assisted | A browser session fills what it can from your profile; **a human reviews every field and clicks submit** | `*.myworkdayjobs.com`, `*.icims.com`, `jobs.lever.co`, `jobs.ashbyhq.com` |
+| 1 | Unattended, deterministic | Fetched and read via a public API this kit actually implements (`sources/greenhouse.py`, `lever.py`, `ashby.py`), no login, no CAPTCHA, no browser | `boards.greenhouse.io`, `job-boards.greenhouse.io`, `jobs.lever.co`, `jobs.ashbyhq.com` |
+| 2 | Attended, browser-extension-assisted | A browser session fills what it can from your profile; **a human reviews every field and clicks submit** | `*.myworkdayjobs.com`, `*.icims.com`, `jobs.smartrecruiters.com` |
 | 3 | Curated shortlist | No automation at all -- ranked entry + prep pack, you apply by hand | anything unrecognized |
 
 Tier 1 is only ever granted to a host with an implemented fetch client in
-`sources/` -- currently just Greenhouse. `jobs.lever.co` and
-`jobs.ashbyhq.com` have public job-board APIs too, but no client is
-implemented for them yet, so they're tier 2 by default. This is enforced
+`sources/` -- Greenhouse, Lever, and Ashby. This is enforced
 in `detect_tier()` itself, not just in the file loader -- any override
 mapping, whether it came from `config/tier_overrides*.yaml` or was passed
 in directly, is validated the same way: a value that isn't 1, 2, or 3 is
@@ -144,22 +162,6 @@ There is no tier that submits an application without a human present. Tier
 - **A human clicks submit for tier 2 and tier 3.** Attended-tier
   automation fills fields; it does not submit.
 
-## How the interview works
-
-`/job-profile-interview` is a Claude Code skill
-(`.claude/skills/job-profile-interview/SKILL.md`) that runs a grill-me
-style interview: one question at a time, a recommended answer offered
-each time, your response recorded with an honest state
-(`known`/`preference`/`requires_confirmation`). It walks target roles,
-seniority, comp floors by location mode (with currency/period),
-remote/hybrid/onsite, geography, per-country work authorization and
-sponsorship, relocation, start date, non-compete, industries to avoid,
-employer blacklist, dealbreakers, self-ID preferences, and a
-screener-answer bank, then writes
-`profile/candidate_profile.yaml` against the schema in
-`src/job_apply_kit/profile.py`. See
-`profile/candidate_profile.example.yaml` for the full shape.
-
 ## Project layout
 
 ```
@@ -168,6 +170,8 @@ src/job_apply_kit/cli.py                        `job-apply-kit` console script (
 src/job_apply_kit/profile.py                    schema + loader + validation
 src/job_apply_kit/answers.py                    deterministic label -> fact resolver
 src/job_apply_kit/sources/greenhouse.py         tier-1 public API fetch
+src/job_apply_kit/sources/lever.py              tier-1 public API fetch
+src/job_apply_kit/sources/ashby.py              tier-1 public API fetch (with published comp)
 src/job_apply_kit/sources/probe_boards.py       find a company's Greenhouse slug
 src/job_apply_kit/rank.py                       fit scoring + reachability
 src/job_apply_kit/tier.py                       ATS host -> tier routing

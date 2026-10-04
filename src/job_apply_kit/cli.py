@@ -20,7 +20,11 @@ from .caps import DEFAULT_DB_PATH, CapsLedger, load_caps_from_env, normalize_com
 from .profile import ProfileError, load_profile, unconfirmed_facts
 from .rank import RankedJob, rank_jobs
 from .shortlist import render_shortlist
+from .sources.ashby import AshbyError
+from .sources.ashby import fetch_jobs as fetch_ashby
 from .sources.greenhouse import GreenhouseError, fetch_jobs
+from .sources.lever import LeverError
+from .sources.lever import fetch_jobs as fetch_lever
 from .sources.probe_boards import probe as probe_boards_run
 from .tier import TierConfigError, detect_tier, load_tier_overrides
 
@@ -43,6 +47,41 @@ def _require_mapping(raw: object, source: str) -> dict:
             f"{source}: expected a YAML mapping at the top level, got {type(raw).__name__}"
         )
     return raw
+
+
+def _greenhouse_postings(token: str) -> list[dict]:
+    return [
+        {
+            "title": j.title,
+            "location": j.location,
+            "url": j.absolute_url,
+            "company": token,
+            "company_name": j.company_name,
+            "salary_amount": j.salary_amount,
+            "salary_currency": j.salary_currency,
+            "salary_period": j.salary_period,
+        }
+        for j in fetch_jobs(token)
+    ]
+
+
+# boards.yaml section -> (per-entry key, fetch(slug) -> posting dicts, error to skip on).
+# Lambdas so tests can monkeypatch the module-level fetch names.
+SOURCES = {
+    "greenhouse": ("board_token", lambda s: _greenhouse_postings(s), GreenhouseError),
+    "lever": ("slug", lambda s: fetch_lever(s), LeverError),
+    "ashby": ("slug", lambda s: fetch_ashby(s), AshbyError),
+}
+
+
+def _board_slugs(boards_raw: dict, name: str, key: str, path: Path) -> list[str]:
+    entries = boards_raw.get(name) or []
+    if not isinstance(entries, list):
+        raise ConfigStructureError(f"{path}: '{name}' must be a list")
+    for entry in entries:
+        if not isinstance(entry, dict) or key not in entry:
+            raise ConfigStructureError(f"{path}: each {name} entry must be a mapping with '{key}'")
+    return [str(entry[key]) for entry in entries]
 
 
 def _load_merged_tier_overrides() -> dict:
@@ -144,43 +183,25 @@ def cmd_discover(args: argparse.Namespace) -> int:
         )
         return 1
     boards_raw = _require_mapping(yaml.safe_load(boards_path.read_text()), str(boards_path))
-    greenhouse_entries = boards_raw.get("greenhouse", [])
-    if not isinstance(greenhouse_entries, list):
-        raise ConfigStructureError(f"{boards_path}: 'greenhouse' must be a list")
-    tokens = []
-    for entry in greenhouse_entries:
-        if not isinstance(entry, dict) or "board_token" not in entry:
-            raise ConfigStructureError(
-                f"{boards_path}: each greenhouse entry must be a mapping with 'board_token'"
-            )
-        tokens.append(entry["board_token"])
-    if not tokens:
-        print(f"no greenhouse.board_token entries in {boards_path}", file=sys.stderr)
+    boards = {
+        name: _board_slugs(boards_raw, name, key, boards_path)
+        for name, (key, _, _) in SOURCES.items()
+    }
+    if not any(boards.values()):
+        print(f"no greenhouse/lever/ashby entries in {boards_path}", file=sys.stderr)
         return 1
 
     overrides = _load_merged_tier_overrides()
     blacklisted_names, blacklisted_domains = _load_blacklisted_companies(DEFAULT_BLACKLIST_PATH)
     blacklisted_names |= {normalize_company(c) for c in profile.employer_blacklist.value}
     postings: list[dict] = []
-    for token in tokens:
-        try:
-            jobs = fetch_jobs(token)
-        except GreenhouseError as e:
-            print(f"skipping board {token!r}: {e}", file=sys.stderr)
-            continue
-        for j in jobs:
-            postings.append(
-                {
-                    "title": j.title,
-                    "location": j.location,
-                    "url": j.absolute_url,
-                    "company": token,
-                    "company_name": j.company_name,
-                    "salary_amount": j.salary_amount,
-                    "salary_currency": j.salary_currency,
-                    "salary_period": j.salary_period,
-                }
-            )
+    for name, slugs in boards.items():
+        _, fetch, error = SOURCES[name]
+        for slug in slugs:
+            try:
+                postings.extend(fetch(slug))
+            except error as e:
+                print(f"skipping {name} board {slug!r}: {e}", file=sys.stderr)
 
     if blacklisted_names or blacklisted_domains:
         before = len(postings)
@@ -280,7 +301,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_probe_boards)
 
     p = sub.add_parser(
-        "discover", help="fetch configured Greenhouse boards, rank, tier, write JSONL"
+        "discover", help="fetch configured Greenhouse/Lever/Ashby boards, rank, tier, write JSONL"
     )
     p.add_argument("--profile", default=str(DEFAULT_PROFILE_PATH))
     p.add_argument("--boards", default=str(DEFAULT_BOARDS_PATH))
