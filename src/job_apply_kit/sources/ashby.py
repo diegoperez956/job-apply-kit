@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import httpx
 
+from ._location import remote_location
+
 JOB_BOARD_API = "https://api.ashbyhq.com/posting-api/job-board/{slug}"
 
 # Ashby compensation intervals -> this kit's Period. Anything else
@@ -70,7 +72,11 @@ def fetch_jobs(slug: str, *, timeout: float = 10.0) -> list[dict]:
         jobs.append(
             {
                 "title": item.get("title") or "",
-                "location": item.get("location") or "",
+                "location": remote_location(
+                    item.get("location") or "",
+                    is_remote=item.get("isRemote"),
+                    workplace_type=item.get("workplaceType"),
+                ),
                 "url": item["jobUrl"],
                 "company": slug,
                 "company_name": None,

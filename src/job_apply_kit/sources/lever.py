@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import httpx
 
+from ._location import remote_location
+
 POSTINGS_API = "https://api.lever.co/v0/postings/{slug}"
 
 # Lever's salaryRange.interval values -> this kit's Period. Anything else
@@ -73,7 +75,9 @@ def fetch_jobs(slug: str, *, timeout: float = 10.0) -> list[dict]:
         jobs.append(
             {
                 "title": item.get("text") or "",
-                "location": categories.get("location") or "",
+                "location": remote_location(
+                    categories.get("location") or "", workplace_type=item.get("workplaceType")
+                ),
                 "url": item["hostedUrl"],
                 "company": slug,
                 "company_name": None,

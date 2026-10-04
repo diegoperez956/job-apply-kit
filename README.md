@@ -44,7 +44,9 @@ hand. The real file is gitignored -- keep it that way.
    answer is tagged `known`, `preference`, or `requires_confirmation` so
    downstream code never treats a guess as a fact.
 2. **Source** -- pulls open jobs from public, no-login ATS APIs:
-   Greenhouse, Lever, and Ashby job boards.
+   Greenhouse, Lever, and Ashby job boards. Explicit Ashby/Lever remote
+   metadata is included in the location label for ranking and salary-floor
+   selection; the original location text stays visible for human review.
 3. **Rank** -- drops any posting from a blacklisted company
    (`config/blacklist.yaml`, personal and gitignored), then scores what's
    left for title/keyword fit against your target roles and checks

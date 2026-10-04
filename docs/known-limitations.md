@@ -16,6 +16,11 @@ Honest gaps, not bugs to file:
   `comp_ok` on most of their postings is the neutral "unknown" state.
   Ashby boards publish comp far more often. Only annual, monthly, and
   hourly figures are read; any other pay interval stays unknown.
+- **Remote reachability is a hint, not a location-eligibility guarantee.**
+  Ashby/Lever explicit remote metadata is retained alongside the named
+  location. Ranking uses simple remote/substring matching, not geocoding
+  or regional policy checks. Review country, state, and timezone limits
+  yourself even when `location_ok` is true.
 - **No browser automation ships in this kit.** Tier 2/3 postings are
   read-only shortlist entries with a prep pack; nothing here drives a
   browser, fills a form, or clicks submit. That's left to whatever
