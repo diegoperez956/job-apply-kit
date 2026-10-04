@@ -166,7 +166,7 @@ blocks it later, even without `TYPESAFE_API_KEY` in that shell. Read [Simplify s
 .venv/bin/job-apply-kit run-status
 .venv/bin/job-apply-kit run-status --target '<board-slug-or-job-url>'
 .venv/bin/job-apply-kit self-heal          # report/preview only
-.venv/bin/job-apply-kit self-heal --apply  # explicit, test-gated known repair
+.venv/bin/job-apply-kit self-heal --apply  # explicit, validated known repair
 ```
 
 Private structured observations live in `data/runs.sqlite3`: recent outcomes
@@ -174,8 +174,8 @@ and failures per source/application reference, including skipped boards.
 No raw job/profile text, URLs, credentials, or exception messages are stored.
 Packets/reservations are **not** submission confirmations; the kit cannot observe
 browser outcomes. Self-heal currently repairs only observed board-token whitespace
-in `config/boards.yaml`, at most 60 changed lines, with offline tests green before
-and after (rollback on failure). Unknown problems are reported, never patched.
+in `config/boards.yaml`, at most 60 changed lines, after re-parsing and an offline
+dry-run through discovery's board loader. Unknown problems are reported, never patched.
 Caps, blacklists, Fact checks, login/CAPTCHA boundaries and human submit remain
 unchanged. See [observation and repair contract](docs/run-observation.md).
 
@@ -188,7 +188,7 @@ Use `.venv/bin/job-apply-kit` if your virtual environment isn't activated.
 | `interview-check [--profile PATH]` | Validate the profile; list unconfirmed facts. |
 | `resume-update SOURCE.yaml [--profile PATH] [--evidence PATH] [--check]` | Validate/install user-edited resume evidence; check-only leaves source unchanged. |
 | `run-status [--limit N] [--target SLUG\|URL]` | Recent observations/failure summaries; not submission tracking. |
-| `self-heal [--apply]` | Report/preview; explicit test-gated catalogued config repair only. |
+| `self-heal [--apply]` | Report/preview; explicit validated catalogued config repair only. |
 | `setup [--jev yes\|no] [--simplify yes\|no]` | Post-interview opt-ins; local config only, no secrets. Interactive unless both choices supplied. |
 | `probe-boards [--keyword K] SLUG...` | Probe public Greenhouse board slugs. |
 | `discover [--demo] [--profile PATH] [--boards PATH] [--evidence PATH] [--out PATH]` | Fetch, blacklist-filter, keyword-rank, optionally extract requirements, tier, write JSONL. |
@@ -196,7 +196,6 @@ Use `.venv/bin/job-apply-kit` if your virtual environment isn't activated.
 | `shortlist JOBS.jsonl [--profile PATH] [--out PATH]` | Ranked overview and suggestions explicitly marked `SUGGESTION`. |
 | `caps status [--db PATH] [--company NAME]...` | Read-only reservation usage. |
 
-Global `--run-log PATH` goes before the command and overrides the private run DB.
 Default outputs are under gitignored `artifacts/`; local caches, run observations and cap
 reservations are under `data/`. Opt-ins and spending caps live only in
 `config/integrations.local.yaml`, never in the profile or public examples.

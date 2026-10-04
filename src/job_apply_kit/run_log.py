@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -79,3 +80,32 @@ class RunLog:
             "failures": [dict(row) for row in failures],
             "note": "Local preparation observations only; never submission confirmation.",
         }
+
+
+class BestEffortLog:
+    """Observation for ordinary commands: an unavailable log warns once, never blocks work."""
+
+    def __init__(self, path: Path = DEFAULT_RUN_LOG):
+        self.log: RunLog | None = None
+        try:
+            self.log = RunLog(path)
+        except (sqlite3.Error, OSError) as e:
+            self._disable(e)
+
+    def _disable(self, error: Exception) -> None:
+        print(f"run observation unavailable: {type(error).__name__}", file=sys.stderr)
+        log, self.log = self.log, None
+        if log is not None:
+            log.close()
+
+    def record(self, *args, **kwargs) -> None:
+        if self.log is None:
+            return
+        try:
+            self.log.record(*args, **kwargs)
+        except (sqlite3.Error, OSError) as e:
+            self._disable(e)
+
+    def close(self) -> None:
+        if self.log is not None:
+            self.log.close()

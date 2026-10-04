@@ -13,13 +13,14 @@ success/failure for each configured public board, including skipped boards
 when the overall discovery command succeeds. Unexpected parser exceptions
 are recorded and re-raised, not hidden. An interrupted process may leave a
 start without a terminal event; inspect that run before trying again.
+Observation is best-effort for ordinary commands: if the DB is corrupt, locked
+or unwritable they warn once on stderr and keep working. Only `run-status` and
+`self-heal` need the log and exit 2 without it.
 
 ```bash
 .venv/bin/job-apply-kit run-status
 .venv/bin/job-apply-kit run-status --limit 50
 .venv/bin/job-apply-kit run-status --target '<board-slug-or-job-url>'
-# Optional private database override goes BEFORE the command:
-.venv/bin/job-apply-kit --run-log artifacts/runs.sqlite3 run-status
 ```
 
 The JSON report has `recent` events and `failures` grouped by source, target
@@ -54,17 +55,13 @@ observed, still-unresolved failure. It preserves all other values and comments;
 uncertain/blank slugs, block scalars, YAML anchors/aliases, symlinks, and unrelated
 failures are reported without changes. It does not add boards or retry requests.
 
-Before a repair it runs `python -m pytest -q` with the current interpreter in
-the checkout. A missing test checkout/dev dependencies, failing baseline, timeout,
-config edited concurrently, or more than **60 added + removed lines** blocks the
-repair. After atomic replacement it runs the same offline suite again; failure
-or interruption restores the original bytes when the config is still owned by
-that repair. No repair is called successful without both suites passing. Each
-test run is bounded to 120 seconds. Abrupt process termination/power loss cannot
-run rollback code; inspect the config and run tests yourself in that case.
+Before writing, the repaired text is re-parsed and must equal the original
+with only slug whitespace trimmed, and it is loaded offline through the same
+board loader `discover` uses: every repaired board must load with its trimmed
+slug. Any mismatch, or more than **60 added + removed lines**, blocks the repair.
+The config is then replaced atomically; nothing is fetched. Run `discover`
+afterwards to confirm the board now resolves.
 
-Run this from the repo root after installing `.[dev]`. A wheel-only install can
-observe runs and update resume evidence, but cannot repair without the tests.
 The allowlisted change surface is config YAML, source adapters under
 `sources/*.py`, or tests, at most 60 changed lines. The current catalog is
 **narrower**: only board-slug whitespace in `config/boards.yaml`; it does not
@@ -72,5 +69,5 @@ rewrite adapters/tests. All other failures require a reviewed manual fix.
 
 No repair may lower caps/budgets, remove a blacklist, loosen tiering or Fact
 checks, enable an integration, bypass site protections, or change human submit.
-Passing tests alone is not permission to weaken these protections. Any future
+Passing validation alone is not permission to weaken these protections. Any future
 catalog entry needs its own safety-preserving transformation and regression tests.

@@ -10,8 +10,6 @@ import difflib
 import json
 import os
 import re
-import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -83,19 +81,14 @@ def _replace(path: Path, content: bytes, mode: int) -> None:
         Path(temporary).unlink(missing_ok=True)
 
 
-def _tests() -> bool:
-    try:
-        return (
-            subprocess.run(
-                [sys.executable, "-m", "pytest", "-q"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=120,
-            ).returncode
-            == 0
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return False
+def _dry_run(text: str, targets: list[tuple[str, str]]) -> None:
+    from .cli import SOURCES, _board_slugs, _require_mapping  # discover's own board loader
+
+    boards = _require_mapping(yaml.safe_load(text), str(BOARDS))
+    for source, slug in targets:
+        loaded = _board_slugs(boards, source, SOURCES[source][0], BOARDS)
+        if slug.strip() not in loaded or slug in loaded:
+            raise IntegrationError("report only: repaired config does not load the trimmed board")
 
 
 def heal(log: RunLog, *, apply: bool = False) -> int:
@@ -125,30 +118,12 @@ def heal(log: RunLog, *, apply: bool = False) -> int:
     if any((source, reference(slug)) not in failed for source, slug in targets):
         print("Report only: whitespace found, but no matching observed board failure.")
         return 0
+    _dry_run(repaired, targets)
     print(f"Catalogued repair: trim board whitespace ({changed} changed lines).")
     if not apply:
-        print("Preview only; use self-heal --apply to test and repair.")
+        print("Preview only; use self-heal --apply to repair.")
         return 0
-    if not Path("tests").is_dir() or not Path("pyproject.toml").is_file():
-        raise IntegrationError(
-            "report only: repair requires a checkout with installed offline tests"
-        )
-    if not _tests():
-        raise IntegrationError("report only: baseline tests failed/unavailable; nothing changed")
-    if BOARDS.is_symlink() or BOARDS.parent.is_symlink() or BOARDS.read_bytes() != original:
-        raise IntegrationError("report only: config changed during baseline tests")
-    mode = BOARDS.stat().st_mode & 0o777
-    replacement = repaired.encode()
-    try:
-        _replace(BOARDS, replacement, mode)
-        if not _tests():
-            raise IntegrationError("repair rolled back: post-repair tests failed/unavailable")
-        if BOARDS.read_bytes() != replacement:
-            raise IntegrationError("report only: config changed during post-repair tests")
-    except BaseException:
-        if BOARDS.read_bytes() == replacement:
-            _replace(BOARDS, original, mode)
-        raise
+    _replace(BOARDS, repaired.encode(), BOARDS.stat().st_mode & 0o777)
     log.record("self-heal", "success", code="board_whitespace_repaired")
-    print("Repair applied; tests green before and after. No safety settings changed.")
+    print("Repair applied; discovery loads the trimmed board(s). No safety settings changed.")
     return 0

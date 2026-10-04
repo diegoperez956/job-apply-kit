@@ -35,7 +35,7 @@ from .profile import ProfileError, load_profile, unconfirmed_facts
 from .rank import RankedJob, rank_jobs
 from .resume_tailor import DEFAULT_EVIDENCE, load_evidence
 from .resume_update import update_resume
-from .run_log import DEFAULT_RUN_LOG, RunLog
+from .run_log import BestEffortLog, RunLog
 from .self_heal import heal
 from .shortlist import render_shortlist
 from .sources.ashby import AshbyError
@@ -405,7 +405,6 @@ def cmd_self_heal(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="job-apply-kit")
-    parser.add_argument("--run-log", default=str(DEFAULT_RUN_LOG), help="private observation DB")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("resume-update", help="validate/install user-edited resume evidence YAML")
@@ -421,7 +420,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_run_status)
 
     p = sub.add_parser("self-heal", help="report failures; preview bounded catalogued repairs")
-    p.add_argument("--apply", action="store_true", help="test before/after a known safe repair")
+    p.add_argument("--apply", action="store_true", help="apply a validated catalogued repair")
     p.set_defaults(func=cmd_self_heal)
 
     p = sub.add_parser("interview-check", help="validate profile/candidate_profile.yaml")
@@ -489,7 +488,9 @@ def main(argv: list[str] | None = None, *, jev_transport: httpx.BaseTransport | 
     observe = args.command != "run-status"
     args.observed_target = getattr(args, "url", None) or ""
     try:
-        observer = args.observer = RunLog(Path(args.run_log))
+        # Only commands that read the log need it; others observe best-effort.
+        needs_log = args.command in {"run-status", "self-heal"}
+        observer = args.observer = RunLog() if needs_log else BestEffortLog()
         if observe:
             observer.record(args.command, "started", target=args.observed_target)
         result = args.func(args)
@@ -528,8 +529,10 @@ def main(argv: list[str] | None = None, *, jev_transport: httpx.BaseTransport | 
             try:
                 if observe:
                     observer.record(
-                        args.command, "success" if result == 0 else "failure",
-                        target=args.observed_target, code=code,
+                        args.command,
+                        "success" if result == 0 else "failure",
+                        target=args.observed_target,
+                        code=code,
                     )
             except (sqlite3.Error, OSError) as e:
                 # A logging outage must not mask the original error or suggest

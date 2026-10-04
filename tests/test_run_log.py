@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -115,8 +116,39 @@ def test_invalid_config_records_failure_without_raw_content(tmp_path, monkeypatc
     assert "private-profile-sentinel" not in json.dumps(report)
 
 
-def test_cli_allows_private_log_override(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    assert cli.main(["--run-log", "artifacts/observations.sqlite3", "interview-check"]) == 1
-    assert Path("artifacts/observations.sqlite3").exists()
-    assert not Path("data/runs.sqlite3").exists()
+@pytest.mark.parametrize("command", ["run-status", "self-heal"])
+def test_unreadable_log_blocks_only_log_commands(tmp_path, monkeypatch, profile, capsys, command):
+    prepare(tmp_path, monkeypatch, profile)
+    Path("data").mkdir()
+    Path("data/runs.sqlite3").write_text("not a database")
+    assert cli.main(["interview-check"]) == 0
+    assert "run observation unavailable: DatabaseError" in capsys.readouterr().err
+    assert cli.main([command]) == 2
+
+
+def test_log_outage_mid_discovery_does_not_abort_or_mask_board_errors(
+    tmp_path, monkeypatch, profile, capsys
+):
+    prepare(tmp_path, monkeypatch, profile)
+    Path("config").mkdir()
+    Path("config/boards.yaml").write_text(
+        "greenhouse: [{board_token: example-failing}, {board_token: example-ok}]\n"
+    )
+    real_record = RunLog.record
+
+    def record(self, command, outcome, **kwargs):
+        if outcome != "started":
+            raise sqlite3.OperationalError("database is locked")
+        real_record(self, command, outcome, **kwargs)
+
+    def fetch(slug):
+        if slug == "example-failing":
+            raise GreenhouseError("board gone")
+        return []
+
+    monkeypatch.setattr(RunLog, "record", record)
+    monkeypatch.setattr(cli, "fetch_jobs", fetch)
+    assert cli.main(["discover"]) == 0
+    err = capsys.readouterr().err
+    assert "skipping greenhouse board 'example-failing'" in err
+    assert err.count("run observation unavailable") == 1
